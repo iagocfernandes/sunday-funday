@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sunday Funday · Estudo do tabuleiro</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#141b13;color:#fff4d9;font:15px system-ui,sans-serif}header,footer{padding:14px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}header{border-bottom:1px solid #ffffff24}h1{font-size:20px;margin:0}small{color:#c9c3ad}.layout{display:grid;grid-template-columns:minmax(0,1fr) 240px;align-items:start;gap:16px;padding:16px}.board{position:relative;overflow:hidden;border-radius:12px;background:#302816}.board svg{display:block;width:100%;height:auto}aside{padding:18px;background:#243020;border:1px solid #596345;border-radius:12px}aside h2{font-size:15px;margin:0 0 14px}button,select{font:inherit;border:1px solid #a18c52;border-radius:8px;padding:10px 13px;background:#eee0b9;color:#2d2818;cursor:pointer}button:disabled{opacity:.45;cursor:default}button.active{background:#ffd064}.players{display:flex;flex-direction:column;gap:8px;margin:16px 0}.legend{line-height:2;color:#ddd4b8}.hint{font-size:13px;line-height:1.6;color:#cbc5b1}label{display:flex;align-items:center;gap:8px}footer{border-top:1px solid #ffffff24}#status{min-height:48px;font-weight:600;line-height:1.5}.space{cursor:pointer}.space:hover .disc{filter:brightness(1.3)}.pawn{pointer-events:none}a{color:#f5d27c}input[type=range]{width:110px}@media(max-width:1000px){.layout{grid-template-columns:1fr}aside{display:flex;gap:18px;flex-wrap:wrap}.players{flex-direction:row}header,footer{padding:10px}}
+</style>
+<header><h1>SUNDAY FUNDAY</h1><small>Estudo visual · circuito de 36 casas</small><a href="/">Voltar ao jogo</a></header>
+<main class="layout">
+<div class="board"><svg id="board" viewBox="0 0 1672 941" role="img" aria-label="Prévia interativa de um circuito de 36 casas na ilha dos gorilas">
+<defs><linearGradient id="rim" x2="0" y2="1"><stop stop-color="#fff0bb"/><stop offset="1" stop-color="#a87530"/></linearGradient></defs>
+<image href="assets/board/ilha-v1.png" width="1672" height="941"/>
+<path id="route" d="M 394 597 C 285 553 332 475 447 427 C 527 395 595 368 594 330 C 578 298 446 312 450 259 C 455 193 582 181 684 213 C 798 263 906 278 1022 254 C 1167 202 1238 265 1269 342 C 1290 394 1327 441 1344 492 C 1443 595 1388 701 1246 710 C 1096 714 942 681 824 664 C 666 649 511 635 394 597 Z" fill="none" stroke="#fff0b6" stroke-width="4" stroke-dasharray="7 10" opacity=".7"/>
+<g id="spaces"></g><g id="pawns"></g>
+</svg></div>
+<aside><div><h2>PERSONAGEM ATIVO</h2><div class="players"><button data-player="0" class="active">Arthur</button><button data-player="1">Mari</button><button data-player="2">Milena</button></div></div><div><p id="status" aria-live="polite">Selecione uma casa para mover Arthur.</p><button id="walk">Demonstrar 6 passos</button><p class="hint">Movimento de demonstração. Não altera sua partida nem aplica recompensas.</p></div><div class="legend">🔵 + moedas<br>🔴 − moedas<br>🟢 Sorte<br>🟣 Carta<br>🟡 Local especial</div><p class="hint">Mercado, templo e ladrão ficam junto ao circuito. Pontes externas são decoração. Bifurcações ainda não fazem parte deste estudo.</p></aside>
+</main>
+<footer><label><input id="numbers" type="checkbox" checked> Números</label><label><input id="path" type="checkbox" checked> Percurso</label><label>Tamanho dos gorilas <input id="scale" type="range" min="90" max="185" value="138"></label><button id="reset">Reiniciar prévia</button><small>Objetivo: validar caminho, escala e leitura na TV.</small></footer>
+<script>
+const NS='http://www.w3.org/2000/svg', route=document.querySelector('#route'), length=route.getTotalLength();
+const points=Array.from({length:36},(_,i)=>route.getPointAtLength(i*length/36));
+const colors=['#348bc8','#438e48','#348bc8','#8053aa','#cf5246','#348bc8'];
+const players=[{name:'Arthur',file:'arthur',color:'#65aff3',pos:2},{name:'Mari',file:'mari',color:'#ed8bc7',pos:14},{name:'Milena',file:'milena',color:'#b79af3',pos:25}];
+let active=0,busy=false,generation=0;
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);parent.append(e);return e;}
+const special={4:'LOJA',15:'TEMPLO',23:'LADRÃO'};
+points.forEach((p,i)=>{const g=el('g',{class:'space',transform:`translate(${p.x} ${p.y})`,role:'button',tabindex:0,'aria-label':`Casa ${i+1}${special[i]?' '+special[i]:''}`},document.querySelector('#spaces'));
+el('ellipse',{cy:5,rx:25,ry:17,fill:'#201808',opacity:.45},g);el('ellipse',{rx:25,ry:17,fill:'url(#rim)'},g);el('ellipse',{class:'disc',rx:21,ry:13,fill:special[i]?'#d7a22f':colors[i%6],stroke:'#fff4d8','stroke-width':1},g);
+const t=el('text',{class:'number','text-anchor':'middle',y:5,fill:'white','font-size':17,'font-weight':800,'paint-order':'stroke',stroke:'#352713','stroke-width':2},g);t.textContent=i+1;
+if(special[i]){const t=el('text',{'text-anchor':'middle',y:37,fill:'#fff8db','font-size':15,'font-weight':800,stroke:'#30220d','stroke-width':4,'paint-order':'stroke'},g);t.textContent=special[i];}
+function move(){if(busy)return;players[active].pos=i;draw();status(`${players[active].name} · casa ${i+1}${special[i]?' · '+special[i]:''}`)}g.onclick=move;g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();move()}};
+});
+function status(s){document.querySelector('#status').textContent=s}
+function draw(overrides={}){const root=document.querySelector('#pawns');root.replaceChildren();const h=Number(document.querySelector('#scale').value);
+players.map((p,i)=>({p,i,xy:overrides[i]||points[p.pos]})).sort((a,b)=>a.xy.y-b.xy.y).forEach(({p,i,xy})=>{const shared=players.filter(q=>q.pos===p.pos);const offset=shared.length>1?(shared.indexOf(p)-(shared.length-1)/2)*32:0;const x=xy.x+offset,y=xy.y;
+const g=el('g',{class:'pawn'},root);el('ellipse',{cx:x,cy:y,rx:25,ry:10,fill:p.color,stroke:i===active?'#fff2ad':'#ffffff88','stroke-width':i===active?4:2},g);
+el('image',{href:`assets/characters/${p.file}-v1.png`,x:x-h/3,y:y-h+5,width:h*2/3,height:h},g);
+const t=el('text',{x,y:y+27,'text-anchor':'middle',fill:'#fff8df','font-size':17,'font-weight':800,stroke:'#251e12','stroke-width':4,'paint-order':'stroke'},g);t.textContent=p.name;
+})}
+document.querySelectorAll('[data-player]').forEach(b=>b.onclick=()=>{if(busy)return;active=Number(b.dataset.player);document.querySelectorAll('[data-player]').forEach(x=>x.classList.toggle('active',x===b));draw();status(`Selecione uma casa para mover ${players[active].name}.`)});
+document.querySelector('#numbers').onchange=e=>document.querySelectorAll('.number').forEach(x=>x.style.display=e.target.checked?'':'none');document.querySelector('#path').onchange=e=>route.style.display=e.target.checked?'':'none';document.querySelector('#scale').oninput=()=>draw();
+document.querySelector('#walk').onclick=async()=>{if(busy)return;busy=true;const gen=++generation,index=active;document.querySelector('#walk').disabled=true;
+for(let step=0;step<6;step++){if(gen!==generation)return;const start=players[index].pos;status(`${players[index].name} · passo ${step+1} de 6`);await new Promise(resolve=>{let first;function frame(now){if(gen!==generation){resolve();return}first??=now;const t=Math.min(1,(now-first)/500),v=t*t*(3-2*t),p=route.getPointAtLength(((start+v)*length/36)%length);draw({[index]:{x:p.x,y:p.y-Math.sin(t*Math.PI)*9}});if(t<1)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)});if(gen!==generation)return;players[index].pos=(start+1)%36;draw()}
+busy=false;document.querySelector('#walk').disabled=false;status(`${players[index].name} chegou à casa ${players[index].pos+1}.`)};
+document.querySelector('#reset').onclick=()=>{generation++;busy=false;players.forEach((p,i)=>p.pos=[2,14,25][i]);document.querySelector('#walk').disabled=false;draw();status('Prévia reiniciada. Selecione uma casa.')};draw();
+</script>
+</html>
