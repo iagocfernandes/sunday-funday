@@ -1,9 +1,11 @@
-import { CARDS_BY_ID, findCardByCode } from '../data/cards';
-import { DEFAULT_CONFIG, ITEMS, MINIGAMES, defaultMinigameOrder } from '../data/config';
-import { createDefaultMap } from '../data/map';
-import { intAt, newSeed, shuffle } from './rng';
+import { CARDS_BY_ID, findCardByCode, digitalCardsOfCategory } from '../data/cards.js';
+import { DEFAULT_CONFIG, ITEMS, MINIGAMES, defaultMinigameOrder } from '../data/config.js';
+import { createDefaultMap } from '../data/map.js';
+import { describePlacement, individualAwards, normalizePlacement } from './placements.js';
+import { intAt, newSeed, shuffle } from './rng.js';
 import type {
   BoardMap,
+  CardDef,
   Command,
   CommandEnvelope,
   CommandResult,
@@ -15,7 +17,7 @@ import type {
   Player,
   PlayerItem,
 } from './types';
-import { SCHEMA_VERSION } from './types';
+import { SCHEMA_VERSION } from './types.js';
 
 /* ------------------------------------------------------------------ */
 /* Criação                                                             */
@@ -39,6 +41,11 @@ export function createGame(
     config.minigameOrder = defaultMinigameOrder(config.rounds);
   }
   const map = options.map ?? createDefaultMap();
+  if (!map.stops) {
+    // Mapas antigos mantêm as regras anteriores, inclusive cartas por código.
+    if (configOverrides.cardMode === undefined) config.cardMode = 'physical';
+    if (configOverrides.shopItems === undefined) config.shopItems = ['dadoDuplo', 'escudo', 'casca', 'reverse'];
+  }
   const rngSeed = options.seed ?? newSeed();
 
   const players: Record<string, Player> = {};
@@ -58,6 +65,7 @@ export function createGame(
 
   const state: GameState = {
     schemaVersion: SCHEMA_VERSION,
+    catalogVersion:2,
     gameId: `sf-${rngSeed.toString(36)}-${Date.now().toString(36)}`,
     createdAt: Date.now(),
     config,
@@ -206,13 +214,73 @@ function consumeSource(
   }
 }
 
+/** Blindado reage apenas a efeitos prejudiciais, nunca a recompensas. */
+function blockCard(state: GameState, target: Player, card: CardDef, events: DomainEvent[]): boolean {
+  const shield = target.inventory.find(i=>i.itemId==='blindado');
+  if (!shield) return false;
+  removeItem(target,shield.uid);
+  events.push({type:'itemUsed',playerId:target.id,itemId:'blindado'});
+  log(state,'card',`${target.name}: Gorila Blindado anulou ${card.title}.`,target.id);
+  state.notice = `${target.name} foi protegido pelo Gorila Blindado!`;
+  return true;
+}
+function resolveMilenaTarget(state: GameState, holder: Player, target: Player, card: CardDef, events: DomainEvent[]) {
+  state.phase='turnEnd';
+  if(blockCard(state,target,card,events)) return;
+  if(card.effectType==='stealGolden') {
+    if(target.golden>0){target.golden--;holder.golden++;log(state,'golden',`${holder.name} roubou uma banana dourada de ${target.name}.`,holder.id);}
+  } else if(card.effectType==='stealHalf') {
+    const amount=Math.floor(target.common/2);
+    changeCommon(state,target,-amount,card.title,events);changeCommon(state,holder,amount,card.title,events);
+  } else if(card.effectType==='stealPower') {
+    if(!target.inventory.length) return;
+    const item=target.inventory.splice(nextRandomInt(state,0,target.inventory.length-1),1)[0];
+    if(holder.inventory.length>=state.config.inventoryLimit){state.pending={kind:'discardPower',playerId:holder.id,incoming:item};state.phase='awaitingInteraction';}
+    else holder.inventory.push(item);
+    log(state,'card',`${holder.name} roubou ${ITEMS[item.itemId].name} de ${target.name}.`,holder.id);
+  } else if(card.effectType==='allInDuel') {
+    state.pending={kind:'duelResult',playerId:holder.id,opponentId:target.id,bet:0,allIn:true};state.phase='awaitingInteraction';
+    log(state,'minigame',`TUDO OU NADA: ${holder.name} × ${target.name}. O perdedor entrega todas as moedas.`);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Movimento                                                           */
 /* ------------------------------------------------------------------ */
 
 function shopItemsAvailable(state: GameState, player: Player): ItemId[] {
-  if (player.inventory.length >= state.config.inventoryLimit) return [];
+  if (!state.map.stops && player.inventory.length >= state.config.inventoryLimit) return [];
   return state.config.shopItems.filter((id) => ITEMS[id].price <= player.common);
+}
+
+/** Visita uma parada antes de gastar o passo até a próxima casa. */
+function traverseTo(state: GameState, player: Player, to: string, events: DomainEvent[]) {
+  const movement = state.movement!;
+  const stop = movement.activatesSpaces && movement.direction === 'forward'
+    ? state.map.stops?.find(s => s.from === player.nodeId && s.to === to) : undefined;
+  if (stop?.kind === 'iagugu') {
+    movement.transit = { stopId: stop.id, to };
+    state.pending = { kind: 'iagugu', playerId: player.id, nodeId: stop.id };
+    state.phase = 'awaitingInteraction'; return;
+  }
+  if (stop?.kind === 'shop') {
+    const items = shopItemsAvailable(state, player);
+    if (items.length) {
+      movement.transit = { stopId: stop.id, to };
+      state.pending = { kind: 'shop', playerId: player.id, nodeId: stop.id, items };
+      state.phase = 'awaitingInteraction'; return;
+    }
+    state.notice = `Sem saldo para comprar na ${stop.name}.`;
+  }
+  if (stop?.kind === 'tree' && state.pedestalNodeId === stop.id && !state.goldenBoughtThisTurn) {
+    if (player.common >= state.config.goldenPrice) {
+      movement.transit = { stopId: stop.id, to };
+      state.pending = { kind: 'pedestal', playerId: player.id, nodeId: stop.id, price: state.config.goldenPrice };
+      state.phase = 'awaitingInteraction'; return;
+    }
+    state.notice = `${stop.name}: precisa de ${state.config.goldenPrice} moedas para colher.`;
+  }
+  arriveAt(state, player, to, events);
 }
 
 /**
@@ -239,9 +307,13 @@ function arriveAt(state: GameState, player: Player, nodeId: string, events: Doma
   }
 
   const node = state.map.nodes[nodeId];
+  if (['ilha-dos-gorilas-v4','ilha-dos-gorilas-v5'].includes(state.map.id) && nodeId === state.map.startNodeId && movement.direction === 'forward') {
+    changeCommon(state, player, 10, 'volta completa', events);
+    state.notice = `${player.name} completou uma volta: +10 moedas!`;
+  }
 
   // Loja e pedestal ativam por PASSAGEM ou chegada.
-  if (node.kind === 'shop') {
+  if (!state.map.stops && node.kind === 'shop') {
     const available = shopItemsAvailable(state, player);
     if (available.length === 0) {
       state.notice =
@@ -253,7 +325,7 @@ function arriveAt(state: GameState, player: Player, nodeId: string, events: Doma
       state.phase = 'awaitingInteraction';
       return;
     }
-  } else if (nodeId === state.pedestalNodeId) {
+  } else if (!state.map.stops && nodeId === state.pedestalNodeId) {
     if (state.goldenBoughtThisTurn) {
       state.notice = `${player.name} já comprou uma banana dourada neste turno.`;
     } else if (player.common < state.config.goldenPrice) {
@@ -308,10 +380,11 @@ function startAttack(
   resume: 'readyToRoll' | 'turnEnd',
   events: DomainEvent[],
 ) {
+  if(source.type==='card'&&blockCard(state,target,CARDS_BY_ID[source.cardId],events)){state.pending=null;state.phase=resume;return;}
   const blockable = source.type === 'item' ? true : CARDS_BY_ID[source.cardId].blockable;
   const reversible = source.type === 'item' ? true : CARDS_BY_ID[source.cardId].reversible;
   const options = defensiveItems(target).filter((it) =>
-    it.itemId === 'escudo' ? blockable : reversible,
+    it.itemId === 'escudo' ? blockable : it.itemId==='reverse' && reversible,
   );
 
   if (options.length === 0) {
@@ -346,20 +419,6 @@ export function autoTeams(ids: string[]): string[][] {
   // Duas equipes equilibradas. Número ímpar: a primeira equipe fica com um a mais.
   const half = Math.ceil(ids.length / 2);
   return [ids.slice(0, half), ids.slice(half)];
-}
-
-function computeIndividualAwards(state: GameState, ranking: string[][]): Record<string, number> {
-  const { first, second, others } = state.config.rewards.individual;
-  const awards: Record<string, number> = {};
-  let position = 1;
-  for (const tier of ranking) {
-    const prize = position === 1 ? first : position === 2 ? second : others;
-    for (const id of tier) awards[id] = prize;
-    position += tier.length; // 1º, 1º, 3º
-  }
-  // Quem não foi classificado recebe o prêmio de participação.
-  for (const id of state.order) if (!(id in awards)) awards[id] = others;
-  return awards;
 }
 
 function computeTeamAwards(
@@ -422,6 +481,7 @@ function reduce(prev: GameState, command: Command): CommandResult {
       if (!player) return reject(prev, 'Sem jogador ativo.');
       state.dice = null;
       state.diceMultiplier = 1;
+      delete state.diceBonus; delete state.chosenDice;
       state.goldenBoughtThisTurn = false;
       state.activeItemsUsedThisTurn = 0;
       state.notice = null;
@@ -429,8 +489,9 @@ function reduce(prev: GameState, command: Command): CommandResult {
       log(state, 'info', `Vez de ${player.name}.`, player.id);
 
       if (usableActiveItems(state, player).length > 0) {
-        state.phase = 'itemWindow';
-        state.itemWindow = { playerId: player.id, remainingMs: cfg.itemWindowMs };
+        state.phase = state.map.stops ? 'awaitingItemChoice' : 'itemWindow';
+        state.itemWindow = state.map.stops ? null : { playerId: player.id, remainingMs: cfg.itemWindowMs };
+        if (state.map.stops) state.pending = { kind: 'itemChoice', playerId: player.id };
       } else {
         state.phase = 'readyToRoll';
         state.itemWindow = null;
@@ -475,6 +536,38 @@ function reduce(prev: GameState, command: Command): CommandResult {
       if (!item) return reject(prev, 'Item não está no inventário.');
       if (ITEMS[item.itemId].usage !== 'active') return reject(prev, 'Item não é utilizável agora.');
 
+      if (item.itemId === 'dadoCerteiro') {
+        state.pending = { kind: 'chooseDice', playerId: player.id, uid: item.uid };
+        state.phase = 'awaitingInteraction'; return { state, events };
+      }
+      if (item.itemId === 'maoNoBolso') {
+        const candidates = state.order.filter(id => id !== player.id && state.players[id].inventory.length > 0);
+        if (!candidates.length) return reject(prev, 'Ninguém tem poderes para roubar.');
+        state.pending = { kind: 'stealItem', playerId: player.id, uid: item.uid, candidates };
+        state.phase = 'awaitingInteraction'; return { state, events };
+      }
+      if (['bananaTurbo', 'trocaTroca', 'mudaBanana'].includes(item.itemId)) {
+        if (item.itemId === 'bananaTurbo') state.diceBonus = 5;
+        if (item.itemId === 'trocaTroca') {
+          const candidates = state.order.filter(id => id !== player.id);
+          if (!candidates.length) return reject(prev, 'Não há outro jogador.');
+          const target = state.players[candidates[nextRandomInt(state, 0, candidates.length - 1)]];
+          [player.nodeId, target.nodeId] = [target.nodeId, player.nodeId];
+          // Não existe percurso entre posições teleportadas: recuos futuros param aqui.
+          player.stepHistory = []; target.stepHistory = [];
+          log(state, 'card', `${player.name} trocou de lugar com ${target.name}, sorteado pelo sistema.`, player.id);
+        }
+        if (item.itemId === 'mudaBanana') {
+          const spots = state.map.pedestalSpots.filter(id => id !== state.pedestalNodeId);
+          if (!spots.length) return reject(prev, 'Não há outro lugar para a banana.');
+          state.pedestalNodeId = spots[nextRandomInt(state, 0, spots.length - 1)];
+          log(state, 'golden', `A banana agora está em ${state.map.stops?.find(s => s.id === state.pedestalNodeId)?.name ?? state.pedestalNodeId}.`);
+        }
+        removeItem(player, item.uid); state.activeItemsUsedThisTurn++;
+        events.push({ type: 'itemUsed', playerId: player.id, itemId: item.itemId });
+        state.pending = null; state.phase = 'readyToRoll'; return { state, events };
+      }
+
       if (item.itemId === 'dadoDuplo') {
         removeItem(player, item.uid);
         state.activeItemsUsedThisTurn += 1;
@@ -502,13 +595,50 @@ function reduce(prev: GameState, command: Command): CommandResult {
       return { state, events };
     }
 
+    case 'discardPower': {
+      if(state.pending?.kind!=='discardPower')return reject(prev,'Não há descarte pendente.');
+      const who=state.players[state.pending.playerId];
+      if(!who.inventory.some(i=>i.uid===command.uid))return reject(prev,'Poder inválido.');
+      removeItem(who,command.uid);who.inventory.push(state.pending.incoming);state.pending=null;state.phase='turnEnd';return {state,events};
+    }
+    case 'chooseDice': {
+      if (state.pending?.kind !== 'chooseDice' || !player) return reject(prev, 'Não há escolha de dado.');
+      if (!Number.isInteger(command.value) || command.value < cfg.diceMin || command.value > cfg.diceMax) return reject(prev, 'Número inválido.');
+      const uid = state.pending.uid;
+      const item = player.inventory.find(i => i.uid === uid);
+      if (!item || item.itemId !== 'dadoCerteiro') return reject(prev, 'Poder indisponível.');
+      removeItem(player, item.uid); state.activeItemsUsedThisTurn++;
+      state.chosenDice = command.value; state.pending = null; state.phase = 'readyToRoll';
+      events.push({ type: 'itemUsed', playerId: player.id, itemId: item.itemId });
+      return { state, events };
+    }
+    case 'stealItem': {
+      if (state.pending?.kind !== 'stealItem' || !player) return reject(prev, 'Não há roubo de poder pendente.');
+      const pending = state.pending;
+      if (!pending.candidates.includes(command.targetId)) return reject(prev, 'Alvo inválido.');
+      const target = state.players[command.targetId];
+      const own = player.inventory.find(i => i.uid === pending.uid && i.itemId === 'maoNoBolso');
+      if (!own || !target?.inventory.length) return reject(prev, 'Poder ou alvo indisponível.');
+      removeItem(player, own.uid);
+      const index = nextRandomInt(state, 0, target.inventory.length - 1);
+      const stolen = target.inventory.splice(index, 1)[0]; player.inventory.push(stolen);
+      state.activeItemsUsedThisTurn++; state.pending = null; state.phase = 'readyToRoll';
+      log(state, 'card', `${player.name} roubou ${ITEMS[stolen.itemId].name} de ${target.name}.`, player.id);
+      events.push({ type: 'itemUsed', playerId: player.id, itemId: own.itemId });
+      return { state, events };
+    }
+
     case 'rollDice': {
       if (state.phase !== 'readyToRoll') return reject(prev, 'Fase não permite rolar dado.');
       if (state.pending) return reject(prev, 'Há decisão pendente.');
       if (!player) return reject(prev, 'Sem jogador ativo.');
-      const raw = nextRandomInt(state, cfg.diceMin, cfg.diceMax);
+      const slowed = !!player.slowNextRoll;
+      const raw = state.chosenDice ?? nextRandomInt(state, cfg.diceMin, cfg.diceMax);
       const doubled = state.diceMultiplier > 1;
-      const value = raw * state.diceMultiplier;
+      const normalValue = (state.map.stops && doubled ? raw + nextRandomInt(state, cfg.diceMin, cfg.diceMax) : raw * state.diceMultiplier) + (state.diceBonus ?? 0);
+      const value = slowed ? nextRandomInt(state,1,3) : normalValue;
+      delete player.slowNextRoll;
+      delete state.chosenDice; delete state.diceBonus;
       state.dice = value;
       state.diceMultiplier = 1;
       state.itemWindow = null;
@@ -545,13 +675,18 @@ function reduce(prev: GameState, command: Command): CommandResult {
         return { state, events };
       }
 
+      if (movement.transit) {
+        const to = movement.transit.to;
+        delete movement.transit;
+        arriveAt(state, player, to, events); return { state, events };
+      }
       const exits = state.map.nodes[player.nodeId].next;
       if (exits.length > 1) {
         state.pending = { kind: 'path', playerId: player.id, options: exits };
         state.phase = 'awaitingPath';
         return { state, events };
       }
-      arriveAt(state, player, exits[0], events);
+      traverseTo(state, player, exits[0], events);
       return { state, events };
     }
 
@@ -563,8 +698,54 @@ function reduce(prev: GameState, command: Command): CommandResult {
       if (!state.pending.options.includes(command.nodeId)) return reject(prev, 'Caminho inválido.');
       state.pending = null;
       log(state, 'info', `${player.name} escolheu um caminho.`, player.id);
-      arriveAt(state, player, command.nodeId, events);
+      traverseTo(state, player, command.nodeId, events);
       return { state, events };
+    }
+
+    case 'skipIagugu': {
+      if (state.pending?.kind !== 'iagugu' || !player) return reject(prev, 'Não há visita ao Iagugu.');
+      resumeAfterInteraction(state, player, events); return {state,events};
+    }
+    case 'rob': {
+      if (state.pending?.kind !== 'iagugu' || !player) return reject(prev, 'Não há visita ao Iagugu.');
+      const target=state.players[command.targetId];
+      if (!target || target.id===player.id) return reject(prev,'Escolha outro jogador.');
+      if (command.currency==='golden') {
+        if (player.common<40 || target.golden<1) return reject(prev,'São necessárias 40 moedas e uma vítima com banana.');
+        changeCommon(state,player,-40,'pagamento ao Iagugu',events);
+        target.golden--; player.golden++;
+        log(state,'golden',`${player.name} pagou 40 moedas ao Iagugu e roubou uma banana de ${target.name}.`,player.id);
+      } else if (command.currency==='common') {
+        if (target.common<1) return reject(prev,'Este jogador não tem moedas.');
+        const amount=Math.min(10,target.common);
+        changeCommon(state,target,-amount,`Iagugu a pedido de ${player.name}`,events);
+        changeCommon(state,player,amount,`Iagugu roubou de ${target.name}`,events);
+      } else return reject(prev,'Tipo de roubo inválido.');
+      state.notice=`Iagugu concluiu o roubo para ${player.name}.`;
+      resumeAfterInteraction(state,player,events); return {state,events};
+    }
+    case 'setDuelBet': {
+      if (state.pending?.kind!=='duelBet') return reject(prev,'Não há aposta pendente.');
+      const p=state.pending;
+      const max=Math.min(state.players[p.playerId].common,state.players[p.opponentId].common,p.maxBet);
+      if (!Number.isInteger(command.amount) || command.amount< (max>0?1:0) || command.amount>max) return reject(prev,'Aposta fora do saldo disponível.');
+      state.pending={kind:'duelResult',playerId:p.playerId,opponentId:p.opponentId,bet:command.amount};
+      log(state,'minigame',`Duelo: ${state.players[p.playerId].name} × ${state.players[p.opponentId].name}, valendo ${command.amount} moedas.`);
+      return {state,events};
+    }
+    case 'resolveDuel': {
+      if (state.pending?.kind!=='duelResult') return reject(prev,'Não há resultado de duelo pendente.');
+      const p=state.pending;
+      if (command.winnerId!==null && ![p.playerId,p.opponentId].includes(command.winnerId)) return reject(prev,'Vencedor inválido.');
+      if (command.winnerId!==null) {
+        const winner=state.players[command.winnerId];
+        const loser=state.players[command.winnerId===p.playerId?p.opponentId:p.playerId];
+        const bet=p.allIn?loser.common:p.bet;
+        if(loser.common<bet) return reject(prev,'Saldo da aposta mudou.');
+        changeCommon(state,loser,-bet,'duelo',events); changeCommon(state,winner,bet,'duelo',events);
+        log(state,'minigame',`${winner.name} venceu o duelo e ganhou ${bet} moedas.`);
+      } else log(state,'minigame','Duelo empatado: nenhuma moeda transferida.');
+      state.pending=null; state.phase='turnEnd'; return {state,events};
     }
 
     case 'buyItem': {
@@ -573,7 +754,12 @@ function reduce(prev: GameState, command: Command): CommandResult {
       if (!state.pending.items.includes(command.itemId)) return reject(prev, 'Item indisponível.');
       const def = ITEMS[command.itemId];
       if (buyer.common < def.price) return reject(prev, 'Saldo insuficiente.');
-      if (buyer.inventory.length >= cfg.inventoryLimit) return reject(prev, 'Inventário cheio.');
+      if (buyer.inventory.length >= cfg.inventoryLimit) {
+        if (!state.map.stops) return reject(prev, 'Inventário cheio.');
+        const discarded = buyer.inventory.find(i => i.uid === command.discardUid);
+        if (!discarded) return reject(prev, 'Escolha qual poder descartar.');
+        removeItem(buyer, discarded.uid);
+      } else if (command.discardUid) return reject(prev, 'Não é necessário descartar.');
       // Atômico: debita e entrega.
       buyer.common -= def.price;
       buyer.inventory.push({ uid: `it-${state.revision}-${buyer.inventory.length}`, itemId: def.id });
@@ -597,6 +783,7 @@ function reduce(prev: GameState, command: Command): CommandResult {
       const buyer = state.players[state.pending.playerId];
       if (state.goldenBoughtThisTurn) return reject(prev, 'Já comprou dourada neste turno.');
       if (buyer.common < state.pending.price) return reject(prev, 'Saldo insuficiente.');
+      const harvestedTree = state.pending.nodeId;
       buyer.common -= state.pending.price;
       buyer.golden += 1;
       state.goldenBoughtThisTurn = true;
@@ -611,7 +798,16 @@ function reduce(prev: GameState, command: Command): CommandResult {
         state.pedestalNodeId = pick;
         log(state, 'system', `O pedestal foi realocado para ${pick}.`);
       }
-      resumeAfterInteraction(state, buyer, events);
+      if (state.movement?.transit && state.map.stops) {
+        state.pending = { kind: 'harvest', playerId: buyer.id, treeId: harvestedTree, nextTreeId: state.pedestalNodeId };
+        state.phase = 'awaitingInteraction';
+      } else resumeAfterInteraction(state, buyer, events);
+      return { state, events };
+    }
+
+    case 'continueHarvest': {
+      if (state.pending?.kind !== 'harvest') return reject(prev, 'Não há colheita para continuar.');
+      resumeAfterInteraction(state, state.players[state.pending.playerId], events);
       return { state, events };
     }
 
@@ -641,6 +837,7 @@ function reduce(prev: GameState, command: Command): CommandResult {
 
     case 'cancelCard': {
       if (state.pending?.kind !== 'cardPreview') return reject(prev, 'Não há prévia de carta.');
+      if (cfg.cardMode === 'digital') return reject(prev, 'O evento sorteado não pode ser trocado.');
       state.pending = { kind: 'cardCode', playerId: state.pending.playerId, category: state.pending.category };
       return { state, events };
     }
@@ -653,7 +850,26 @@ function reduce(prev: GameState, command: Command): CommandResult {
       events.push({ type: 'cardResolved', playerId: holder.id, cardId: card.id });
       log(state, 'card', `${holder.name}: ${card.title}.`, holder.id);
 
+      if(card.category==='unluck' && blockCard(state,holder,card,events)){state.phase='turnEnd';return {state,events};}
       switch (card.effectType) {
+        case 'social': {
+          const duration=card.id==='MA02' && holder.name.toUpperCase().replace(/[^A-Z0-9]/g,'')==='AR2'?2:card.durationRounds??1;
+          holder.tasks=[...(holder.tasks??[]).filter(t=>t.untilRound>state.round),{cardId:card.id,untilRound:state.round+duration}];
+          state.phase='turnEnd';break;
+        }
+        case 'loseGolden': holder.golden=Math.max(0,holder.golden-card.amount);state.phase='turnEnd';break;
+        case 'teleportTree': {
+          const stop=state.map.stops?.find(s=>s.id===state.pedestalNodeId);
+          if(stop){
+            holder.nodeId=stop.from;holder.stepHistory=[];
+            if(holder.common>=cfg.goldenPrice&&!state.goldenBoughtThisTurn){
+              state.movement={remaining:1,traversed:[],activatesSpaces:false,direction:'forward',teleport:true,transit:{stopId:stop.id,to:stop.to}};
+              state.pending={kind:'pedestal',playerId:holder.id,nodeId:stop.id,price:cfg.goldenPrice};state.phase='awaitingInteraction';
+            }else{state.notice='Você chegou à árvore, mas não tem saldo para colher ou já colheu neste turno.';state.phase='turnEnd';}
+          } else state.phase='turnEnd';
+          break;
+        }
+        case 'moveForward': state.movement={remaining:card.amount,traversed:[],activatesSpaces:false,direction:'forward'};state.phase='moving';break;
         case 'gainCommon':
           changeCommon(state, holder, card.amount, card.title, events);
           state.phase = 'turnEnd';
@@ -675,8 +891,10 @@ function reduce(prev: GameState, command: Command): CommandResult {
           };
           state.phase = 'moving';
           break;
+        case 'stealGolden': case 'stealPower': case 'stealHalf': case 'allInDuel':
+        case 'stealCommon':
         case 'attackCommon': {
-          const candidates = state.order.filter((id) => id !== holder.id);
+          const candidates = state.order.filter((id) => id !== holder.id && (card.effectType !== 'stealCommon' || state.players[id].common > 0) && (card.effectType !== 'stealGolden' || state.players[id].golden>0) && (card.effectType!=='stealPower'||state.players[id].inventory.length>0) && (card.effectType!=='stealHalf'||state.players[id].common>=2));
           if (candidates.length === 0) {
             state.phase = 'turnEnd';
             break;
@@ -703,7 +921,18 @@ function reduce(prev: GameState, command: Command): CommandResult {
       const target = state.players[command.targetId];
       const { amount, source, resume } = state.pending;
       state.pending = null;
-      startAttack(state, attacker, target, amount, source, resume, events);
+      if(source.type==='item' && attacker.inventory.find(i=>i.uid===source.uid)?.itemId==='preguicao'){
+        removeItem(attacker,source.uid);state.activeItemsUsedThisTurn++;target.slowNextRoll=true;state.phase=resume;
+        log(state,'card',`${target.name}: próxima rolagem limitada a 1–3 por ${attacker.name}.`,attacker.id);
+      } else if(source.type==='card' && ['stealGolden','stealPower','stealHalf','allInDuel'].includes(CARDS_BY_ID[source.cardId].effectType)){
+        resolveMilenaTarget(state,attacker,target,CARDS_BY_ID[source.cardId],events);
+      } else if (source.type === 'card' && CARDS_BY_ID[source.cardId].effectType === 'stealCommon') {
+        if(blockCard(state,target,CARDS_BY_ID[source.cardId],events)){state.phase=resume;return {state,events};}
+        const stolen = Math.min(amount, target.common);
+        changeCommon(state, target, -stolen, `Mão Leve de ${attacker.name}`, events);
+        changeCommon(state, attacker, stolen, `Mão Leve em ${target.name}`, events);
+        state.phase = resume;
+      } else startAttack(state, attacker, target, amount, source, resume, events);
       return { state, events };
     }
 
@@ -769,13 +998,34 @@ function reduce(prev: GameState, command: Command): CommandResult {
           break;
         case 'luck':
         case 'unluck':
-          state.pending = {
-            kind: 'cardCode',
-            playerId: player.id,
-            category: node.kind === 'luck' ? 'luck' : 'unluck',
+          if (cfg.cardMode === 'digital') {
+            const category = node.kind === 'luck' ? 'luck' : 'unluck';
+            state.cardDecks ??= {};
+            let deck = state.cardDecks[category];
+            if (!deck?.length) {
+              deck = digitalCardsOfCategory(category).filter(c => !c.grantsItem || cfg.shopItems.includes(c.grantsItem)).flatMap(c => Array.from({length:c.weight??1},()=>c.id));
+              for (let i = deck.length - 1; i > 0; i--) {
+                const j = nextRandomInt(state, 0, i); [deck[i], deck[j]] = [deck[j], deck[i]];
+              }
+              state.cardDecks[category] = deck;
+            }
+            const cardId = deck.shift();
+            if (!cardId) return reject(prev, 'Baralho vazio.');
+            state.pending = { kind: 'cardPreview', playerId: player.id, cardId, category };
+          } else state.pending = {
+            kind: 'cardCode', playerId: player.id, category: node.kind === 'luck' ? 'luck' : 'unluck',
           };
           state.phase = 'awaitingInteraction';
           break;
+        case 'duel': {
+          const others=state.order.filter(id=>id!==player.id);
+          const funded=others.filter(id=>state.players[id].common>0);
+          const candidates=funded.length?funded:others;
+          if (!candidates.length) {state.phase='turnEnd';break;}
+          const opponentId=candidates[nextRandomInt(state,0,candidates.length-1)];
+          state.pending={kind:'duelBet',playerId:player.id,opponentId,maxBet:Math.min(player.common,state.players[opponentId].common)};
+          state.phase='awaitingInteraction'; break;
+        }
         case 'thief':
           if (!cfg.thiefEnabled) {
             state.notice = 'O esconderijo do ladrão está desativado nesta configuração.';
@@ -855,14 +1105,12 @@ function reduce(prev: GameState, command: Command): CommandResult {
             ? 'Empate entre as equipes.'
             : `Equipe ${winningTeam + 1} venceu.`;
       } else {
-        const rank = command.ranking ?? [];
-        if (rank.flat().length === 0) return reject(prev, 'Informe ao menos uma colocação.');
-        const flat = rank.flat();
-        if (new Set(flat).size !== flat.length) return reject(prev, 'Jogador repetido na classificação.');
-        awards = computeIndividualAwards(state, rank);
-        detail = rank
-          .map((tier, i) => `${i + 1}º: ${tier.map((id) => state.players[id].name).join(', ')}`)
-          .join(' | ');
+        // Posições competitivas e validação de lacunas vêm da mesma origem que
+        // o formulário usa, para que prévia, histórico e prêmio não divirjam.
+        const placement = normalizePlacement(state.order, command.ranking ?? []);
+        if (!placement.ok) return reject(prev, placement.error);
+        awards = individualAwards(state.order, placement.tiers, state.config.rewards.individual);
+        detail = describePlacement(placement.tiers, (id) => state.players[id].name);
       }
 
       // Premiação aplicada em uma única operação.
@@ -934,6 +1182,8 @@ function reduce(prev: GameState, command: Command): CommandResult {
 /* ------------------------------------------------------------------ */
 
 export function nextAutoCommand(state: GameState): Command | null {
+  if(state.config.cardMode==='digital' && state.pending?.kind==='cardPreview') return {type:'confirmCard'};
+  if(state.pending?.kind==='harvest') return {type:'continueHarvest'};
   if (state.pending) return null;
   switch (state.phase) {
     case 'turnStart':
@@ -989,6 +1239,12 @@ export function statusText(state: GameState, manualPaused: boolean): string {
       return `${name} decide: qual caminho?`;
     case 'awaitingInteraction':
       switch (state.pending?.kind) {
+        case 'iagugu': return `${name} visita o Iagugu.`;
+        case 'duelBet': return `${name} escolhe a aposta do duelo.`;
+        case 'duelResult': return 'Duelo presencial: aguardando resultado do anfitrião.';
+        case 'harvest': return 'Banana colhida! Aguarde o jogador continuar.';
+        case 'chooseDice': return 'Escolhendo o dado.';
+        case 'stealItem': return 'Escolhendo de quem roubar um poder.';
         case 'shop':
           return `${name} decide: comprar ou passar (loja)`;
         case 'pedestal':

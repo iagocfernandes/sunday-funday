@@ -1,0 +1,11 @@
+node_modules
+.git
+.claude
+.env*
+output
+outputs
+tmp
+docs
+scripts
+*.test.ts
+*.test.tsx

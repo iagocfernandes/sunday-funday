@@ -1,0 +1,52 @@
+.player-portrait {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #233b32;
+  isolation: isolate;
+}
+
+.player-portrait__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+}
+
+/* The approved fullbody art is 1024x1536. These offsets place the face in a
+   small circular avatar without changing uploads or older portrait assets. */
+.player-portrait--official .player-portrait__image {
+  position: absolute;
+  width: 220%;
+  max-width: none;
+  height: auto;
+  object-fit: initial;
+  object-position: initial;
+}
+
+.player-portrait--arthur .player-portrait__image {
+  left: -73.2%;
+  top: -2.8%;
+}
+
+.player-portrait--mari .player-portrait__image {
+  left: -62.2%;
+  top: -6.1%;
+}
+
+.player-portrait--milena .player-portrait__image {
+  left: -60%;
+  top: .5%;
+}
+
+.player-portrait--photo .player-portrait__image {
+  object-fit: cover;
+}
+
+
+.tv-active-portrait{width:56px;height:56px;border:2px solid #ffd12d}.tv-player-portrait{width:34px;height:34px}.tv-scene-portrait{width:110px;height:110px}

@@ -1,6 +1,6 @@
-import { validateMap } from '../data/map';
 import type { GameState } from '../game/types';
 import { SCHEMA_VERSION } from '../game/types';
+import { validateGameState } from './validate';
 
 const KEY_CURRENT = 'sundayfunday:current';
 const KEY_PREVIOUS = 'sundayfunday:previous';
@@ -54,16 +54,56 @@ export function saveSnapshot(state: GameState, control: PersistedControl): SaveS
   }
 }
 
-export function loadSnapshot(): Snapshot | null {
+export type LoadOrigin = 'current' | 'previous';
+
+export interface LoadResult {
+  snapshot: Snapshot;
+  origin: LoadOrigin;
+  /** Motivo pelo qual o snapshot atual foi descartado, quando houve recuperação. */
+  recoveredFrom?: string;
+}
+
+function readKey(key: string): { snapshot: Snapshot } | { error: string } | null {
   const store = storage();
   if (!store) return null;
-  const raw = store.getItem(KEY_CURRENT);
+  const raw = store.getItem(key);
   if (!raw) return null;
+  let parsed: unknown;
   try {
-    return migrate(JSON.parse(raw));
+    parsed = JSON.parse(raw);
   } catch {
-    return null;
+    return { error: 'Arquivo salvo ilegível (JSON inválido).' };
   }
+  const migrated = migrate(parsed as Snapshot);
+  if (!migrated) return { error: 'Estado salvo de versão incompatível.' };
+  // A mesma validação da importação: nada entra na partida sem passar por ela.
+  const validation = validateGameState(migrated.state);
+  if (!validation.ok) return { error: validation.errors[0] };
+  return { snapshot: migrated };
+}
+
+/**
+ * Carrega a partida salva. Se o snapshot atual estiver corrompido, recupera o
+ * snapshot anterior válido. Nada é gravado aqui: recusar um estado nunca
+ * substitui o último estado válido.
+ */
+export function loadSnapshotDetailed(): LoadResult | null {
+  const current = readKey(KEY_CURRENT);
+  if (current && 'snapshot' in current) return { snapshot: current.snapshot, origin: 'current' };
+
+  const previous = readKey(KEY_PREVIOUS);
+  if (previous && 'snapshot' in previous) {
+    return {
+      snapshot: previous.snapshot,
+      origin: 'previous',
+      recoveredFrom: current && 'error' in current ? current.error : 'Snapshot atual ausente.',
+    };
+  }
+  return null;
+}
+
+export function loadSnapshot(): Snapshot | null {
+  return loadSnapshotDetailed()?.snapshot ?? null;
 }
 
 export function hasSavedGame(): boolean {
@@ -80,25 +120,70 @@ export function clearSaved(): void {
 
 /* ---------------- Pilha de desfazer ---------------- */
 
+/**
+ * A pilha é vinculada a uma única partida. Trocar de partida (nova, importada
+ * ou retomada de outro gameId) descarta a pilha antiga, para que Desfazer nunca
+ * restaure o estado de outra partida.
+ */
+interface UndoStack {
+  gameId: string;
+  entries: GameState[];
+}
+
+function readUndoStack(): UndoStack | null {
+  const store = storage();
+  if (!store) return null;
+  const raw = store.getItem(KEY_UNDO);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      typeof parsed !== 'object' || parsed === null ||
+      typeof (parsed as UndoStack).gameId !== 'string' ||
+      !Array.isArray((parsed as UndoStack).entries)
+    ) {
+      return null; // formato antigo ou corrompido: tratado como inexistente
+    }
+    return parsed as UndoStack;
+  } catch {
+    return null;
+  }
+}
+
 export function pushUndo(state: GameState): void {
   const store = storage();
   if (!store) return;
   try {
-    const stack: GameState[] = JSON.parse(store.getItem(KEY_UNDO) ?? '[]');
-    stack.push(state);
-    while (stack.length > 30) stack.shift();
+    const existing = readUndoStack();
+    const stack: UndoStack =
+      existing && existing.gameId === state.gameId
+        ? existing
+        : { gameId: state.gameId, entries: [] };
+    stack.entries.push(state);
+    while (stack.entries.length > 30) stack.entries.shift();
     store.setItem(KEY_UNDO, JSON.stringify(stack));
   } catch {
     /* pilha de desfazer é best-effort */
   }
 }
 
-export function popUndo(): GameState | null {
+/** Só devolve um estado da MESMA partida; qualquer outro é descartado. */
+export function popUndo(gameId: string): GameState | null {
   const store = storage();
   if (!store) return null;
+  const stack = readUndoStack();
+  if (!stack) return null;
+  if (stack.gameId !== gameId) {
+    store.removeItem(KEY_UNDO);
+    return null;
+  }
   try {
-    const stack: GameState[] = JSON.parse(store.getItem(KEY_UNDO) ?? '[]');
-    const state = stack.pop() ?? null;
+    const state = stack.entries.pop() ?? null;
+    if (state && state.gameId !== gameId) {
+      // Defesa extra: entrada de outra partida dentro da pilha.
+      store.removeItem(KEY_UNDO);
+      return null;
+    }
     store.setItem(KEY_UNDO, JSON.stringify(stack));
     return state;
   } catch {
@@ -106,14 +191,26 @@ export function popUndo(): GameState | null {
   }
 }
 
-export function undoDepth(): number {
+export function undoDepth(gameId: string): number {
+  const stack = readUndoStack();
+  if (!stack || stack.gameId !== gameId) return 0;
+  return stack.entries.filter((entry) => entry.gameId === gameId).length;
+}
+
+/** Descarta a pilha se ela pertencer a outra partida. Devolve true se limpou. */
+export function dropForeignUndo(gameId: string): boolean {
   const store = storage();
-  if (!store) return 0;
-  try {
-    return (JSON.parse(store.getItem(KEY_UNDO) ?? '[]') as GameState[]).length;
-  } catch {
-    return 0;
+  if (!store) return false;
+  const stack = readUndoStack();
+  if (stack && stack.gameId !== gameId) {
+    store.removeItem(KEY_UNDO);
+    return true;
   }
+  if (!stack && store.getItem(KEY_UNDO)) {
+    store.removeItem(KEY_UNDO); // formato antigo/corrompido
+    return true;
+  }
+  return false;
 }
 
 export function clearUndo(): void {
@@ -123,7 +220,7 @@ export function clearUndo(): void {
 /* ---------------- Migração de schema ---------------- */
 
 export function migrate(snapshot: Snapshot): Snapshot | null {
-  if (!snapshot || typeof snapshot !== 'object' || !snapshot.state) return null;
+  if (!snapshot || typeof snapshot !== 'object' || !snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) return null;
   if (snapshot.schemaVersion > SCHEMA_VERSION) return null; // arquivo de versão futura
   const state = snapshot.state;
   // Versões anteriores não existiram em produção; normalizamos campos ausentes.
@@ -157,7 +254,10 @@ export type ImportResult =
   | { ok: true; snapshot: Snapshot }
   | { ok: false; error: string };
 
-/** Validação estrutural completa. Arquivo inválido não destrói a partida atual. */
+/**
+ * Validação completa do arquivo importado. Um arquivo inválido é recusado sem
+ * gravar nada: a partida atual e o último estado válido permanecem intactos.
+ */
 export function parseImport(text: string): ImportResult {
   let raw: unknown;
   try {
@@ -165,43 +265,28 @@ export function parseImport(text: string): ImportResult {
   } catch {
     return { ok: false, error: 'Arquivo não é um JSON válido.' };
   }
-  const snapshot = raw as Snapshot;
-  if (!snapshot || typeof snapshot !== 'object' || !snapshot.state) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, error: 'Arquivo não contém um estado de partida.' };
   }
-  if (typeof snapshot.schemaVersion !== 'number') {
+  const snapshot = raw as Snapshot;
+  if (!snapshot.state) return { ok: false, error: 'Arquivo não contém um estado de partida.' };
+  if (typeof snapshot.schemaVersion !== 'number' || !Number.isInteger(snapshot.schemaVersion)) {
     return { ok: false, error: 'Arquivo sem versão de schema.' };
   }
   if (snapshot.schemaVersion > SCHEMA_VERSION) {
     return { ok: false, error: `Arquivo da versão ${snapshot.schemaVersion}; este app lê até ${SCHEMA_VERSION}.` };
   }
 
-  const state = snapshot.state;
-  const required: Array<keyof GameState> = ['gameId', 'config', 'map', 'phase', 'players', 'order', 'revision'];
-  for (const key of required) {
-    if (state[key] === undefined || state[key] === null) {
-      return { ok: false, error: `Campo obrigatório ausente: ${String(key)}.` };
-    }
+  const validation = validateGameState(snapshot.state);
+  if (!validation.ok) {
+    return {
+      ok: false,
+      error:
+        validation.errors.length > 1
+          ? `${validation.errors[0]} (+${validation.errors.length - 1} outro(s) problema(s))`
+          : validation.errors[0],
+    };
   }
-  if (!Array.isArray(state.order) || state.order.length === 0) {
-    return { ok: false, error: 'Ordem de jogadores vazia.' };
-  }
-  for (const id of state.order) {
-    if (!state.players[id]) return { ok: false, error: `Jogador ${id} referenciado mas ausente.` };
-  }
-  for (const player of Object.values(state.players)) {
-    if (!state.map.nodes[player.nodeId]) {
-      return { ok: false, error: `Jogador ${player.name} está numa casa inexistente.` };
-    }
-    if (player.common < 0 || player.golden < 0) {
-      return { ok: false, error: `Saldo negativo em ${player.name}.` };
-    }
-  }
-  if (!state.map.nodes[state.pedestalNodeId]) {
-    return { ok: false, error: 'Pedestal em casa inexistente.' };
-  }
-  const validation = validateMap(state.map);
-  if (!validation.ok) return { ok: false, error: `Mapa inválido: ${validation.errors[0]}` };
 
   const migrated = migrate(snapshot);
   if (!migrated) return { ok: false, error: 'Não foi possível migrar o arquivo.' };

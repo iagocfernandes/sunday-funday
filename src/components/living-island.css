@@ -1,0 +1,72 @@
+.island-board .board-piece-presented {
+  transition: none;
+}
+
+.living-island {
+  pointer-events: none;
+}
+
+.island-canopy {
+  animation: island-canopy-breeze 6.8s cubic-bezier(.42, 0, .58, 1) infinite alternate;
+  transform-box: view-box;
+}
+
+.island-water-texture {
+  animation: island-water-texture 2.8s cubic-bezier(.45, 0, .55, 1) infinite alternate;
+  opacity: .32;
+}
+
+.island-water-sheet {
+  animation: island-water-sheet 2.15s linear infinite;
+  opacity: .42;
+}
+
+.island-foam {
+  animation: island-foam 3.1s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.island-mist {
+  animation: island-mist 4.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.living-island.is-paused * {
+  animation-play-state: paused !important;
+}
+
+@keyframes island-canopy-breeze {
+  0% { transform: rotate(-1.75deg) translate(-1.25px, .35px); }
+  48% { transform: rotate(.18deg) translate(.1px, -.55px); }
+  100% { transform: rotate(1.9deg) translate(1.35px, .2px); }
+}
+
+@keyframes island-water-texture {
+  0% { transform: translateY(-1.5px) scaleY(1.005); opacity: .25; }
+  100% { transform: translateY(4.5px) scaleY(1.018); opacity: .4; }
+}
+
+@keyframes island-water-sheet {
+  0% { transform: translateY(-7px); opacity: .25; }
+  55% { opacity: .48; }
+  100% { transform: translateY(8px); opacity: .2; }
+}
+
+@keyframes island-foam {
+  0%, 100% { transform: scaleX(.86) scaleY(.92); opacity: .62; }
+  50% { transform: scaleX(1.12) scaleY(1.08); opacity: .9; }
+}
+
+@keyframes island-mist {
+  0% { transform: translate(-2px, 1px) scale(.88); opacity: .28; }
+  52% { transform: translate(2px, -3px) scale(1.08); opacity: .6; }
+  100% { transform: translate(5px, -5px) scale(1.16); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .living-island {
+    display: none;
+  }
+}

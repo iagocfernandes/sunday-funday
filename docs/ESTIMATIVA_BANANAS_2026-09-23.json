@@ -1,0 +1,283 @@
+{
+  "assumptions": {
+    "rounds": 8,
+    "goldenPrice": 20,
+    "startingCoins": 10,
+    "dice": "1–10",
+    "shopStock": "unlimited, current engine",
+    "minigames": "default sequence, random winners, no ties",
+    "cards": "two copies each, reshuffled when exhausted",
+    "policies": {
+      "shop-random": "random paths; buy an affordable item at every shop",
+      "save-seek": "skip shops; choose shortest path to current pedestal"
+    },
+    "seeds": "10001 + i * 7919, i=0..99",
+    "note": "Modeled behavior, not measured human play. Proposed catalog only changed in simulation memory."
+  },
+  "results": [
+    {
+      "catalog": "current",
+      "policy": "shop-random",
+      "players": 8,
+      "runs": 100,
+      "meanTotal": 4.76,
+      "meanPerPlayer": 0.595,
+      "p95Total": 7,
+      "minTotal": 1,
+      "maxTotal": 8,
+      "maxIndividual": 2,
+      "roundMeans": [
+        0,
+        0.18,
+        1,
+        1.73,
+        2.24,
+        2.84,
+        3.66,
+        4.76
+      ]
+    },
+    {
+      "catalog": "current",
+      "policy": "shop-random",
+      "players": 9,
+      "runs": 100,
+      "meanTotal": 5.29,
+      "meanPerPlayer": 0.5877777777777777,
+      "p95Total": 8,
+      "minTotal": 1,
+      "maxTotal": 9,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.24,
+        0.97,
+        1.66,
+        2.35,
+        3.21,
+        4.27,
+        5.29
+      ]
+    },
+    {
+      "catalog": "current",
+      "policy": "shop-random",
+      "players": 10,
+      "runs": 100,
+      "meanTotal": 5.77,
+      "meanPerPlayer": 0.577,
+      "p95Total": 9,
+      "minTotal": 1,
+      "maxTotal": 10,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.26,
+        1.15,
+        1.79,
+        2.45,
+        3.5,
+        4.57,
+        5.77
+      ]
+    },
+    {
+      "catalog": "current",
+      "policy": "save-seek",
+      "players": 8,
+      "runs": 100,
+      "meanTotal": 6.29,
+      "meanPerPlayer": 0.78625,
+      "p95Total": 9,
+      "minTotal": 3,
+      "maxTotal": 10,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.26,
+        1.23,
+        2.06,
+        3.01,
+        3.78,
+        4.89,
+        6.29
+      ]
+    },
+    {
+      "catalog": "current",
+      "policy": "save-seek",
+      "players": 9,
+      "runs": 100,
+      "meanTotal": 6.95,
+      "meanPerPlayer": 0.7722222222222223,
+      "p95Total": 10,
+      "minTotal": 3,
+      "maxTotal": 12,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.37,
+        1.36,
+        2.27,
+        3.11,
+        4.28,
+        5.56,
+        6.95
+      ]
+    },
+    {
+      "catalog": "current",
+      "policy": "save-seek",
+      "players": 10,
+      "runs": 100,
+      "meanTotal": 7.68,
+      "meanPerPlayer": 0.768,
+      "p95Total": 11,
+      "minTotal": 4,
+      "maxTotal": 13,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.41,
+        1.48,
+        2.45,
+        3.53,
+        4.75,
+        6.14,
+        7.68
+      ]
+    },
+    {
+      "catalog": "proposed",
+      "policy": "shop-random",
+      "players": 8,
+      "runs": 100,
+      "meanTotal": 5,
+      "meanPerPlayer": 0.625,
+      "p95Total": 8,
+      "minTotal": 2,
+      "maxTotal": 9,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.21,
+        1.05,
+        1.71,
+        2.37,
+        3.1,
+        4.05,
+        5
+      ]
+    },
+    {
+      "catalog": "proposed",
+      "policy": "shop-random",
+      "players": 9,
+      "runs": 100,
+      "meanTotal": 5.63,
+      "meanPerPlayer": 0.6255555555555555,
+      "p95Total": 8,
+      "minTotal": 1,
+      "maxTotal": 11,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.31,
+        0.98,
+        1.8,
+        2.47,
+        3.45,
+        4.47,
+        5.63
+      ]
+    },
+    {
+      "catalog": "proposed",
+      "policy": "shop-random",
+      "players": 10,
+      "runs": 100,
+      "meanTotal": 5.84,
+      "meanPerPlayer": 0.584,
+      "p95Total": 9,
+      "minTotal": 2,
+      "maxTotal": 10,
+      "maxIndividual": 2,
+      "roundMeans": [
+        0,
+        0.3,
+        0.99,
+        1.86,
+        2.6,
+        3.48,
+        4.45,
+        5.84
+      ]
+    },
+    {
+      "catalog": "proposed",
+      "policy": "save-seek",
+      "players": 8,
+      "runs": 100,
+      "meanTotal": 6.76,
+      "meanPerPlayer": 0.845,
+      "p95Total": 10,
+      "minTotal": 3,
+      "maxTotal": 12,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.4,
+        1.41,
+        2.27,
+        3.07,
+        4.17,
+        5.34,
+        6.76
+      ]
+    },
+    {
+      "catalog": "proposed",
+      "policy": "save-seek",
+      "players": 9,
+      "runs": 100,
+      "meanTotal": 7.39,
+      "meanPerPlayer": 0.8211111111111111,
+      "p95Total": 11,
+      "minTotal": 3,
+      "maxTotal": 14,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.6,
+        1.46,
+        2.51,
+        3.48,
+        4.66,
+        5.96,
+        7.39
+      ]
+    },
+    {
+      "catalog": "proposed",
+      "policy": "save-seek",
+      "players": 10,
+      "runs": 100,
+      "meanTotal": 8.12,
+      "meanPerPlayer": 0.8119999999999999,
+      "p95Total": 11,
+      "minTotal": 4,
+      "maxTotal": 14,
+      "maxIndividual": 3,
+      "roundMeans": [
+        0,
+        0.5,
+        1.57,
+        2.52,
+        3.7,
+        5.15,
+        6.51,
+        8.12
+      ]
+    }
+  ]
+}

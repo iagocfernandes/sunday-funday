@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CARDS_BY_ID } from '../data/cards';
 import { ITEMS } from '../data/config';
-import { createDefaultMap, validateMap } from '../data/map';
+import { createDefaultMap, createLegacyMap, validateMap } from '../data/map';
 import {
   activePlayer,
   applyCommand,
@@ -23,7 +23,7 @@ function seeds(count: number): PlayerSeed[] {
 }
 
 function game(count = 8, overrides = {}): GameState {
-  return createGame(seeds(count), { rounds: 2, ...overrides }, { seed: 1234, shuffleOrder: false });
+  return createGame(seeds(count), { rounds: 2, ...overrides }, { seed: 1234, shuffleOrder: false, map: createLegacyMap() });
 }
 
 /** Aplica um comando e falha o teste se for rejeitado. */
@@ -63,6 +63,13 @@ function autoplay(state: GameState, maxSteps = 4000): GameState {
 function resolvePending(state: GameState): GameState {
   const pending = state.pending!;
   switch (pending.kind) {
+    case 'discardPower': return run(state,{type:'discardPower',uid:state.players[pending.playerId].inventory[0].uid});
+    case 'iagugu': return run(state,{type:'skipIagugu'});
+    case 'duelBet': return run(state,{type:'setDuelBet',amount:Math.min(1,pending.maxBet)});
+    case 'duelResult': return run(state,{type:'resolveDuel',winnerId:null});
+    case 'harvest': return run(state, { type: 'continueHarvest' });
+    case 'chooseDice': return run(state, { type: 'chooseDice', value: 3 });
+    case 'stealItem': return run(state, { type: 'stealItem', targetId: pending.candidates[0] });
     case 'path':
       return run(state, { type: 'choosePath', nodeId: pending.options[0] });
     case 'shop':
@@ -83,9 +90,9 @@ function resolvePending(state: GameState): GameState {
 }
 
 describe('mapa', () => {
-  it('tem 36 casas, duas bifurcações e grafo válido', () => {
+  it('tem 48 casas, duas bifurcações e grafo válido', () => {
     const map = createDefaultMap();
-    expect(Object.keys(map.nodes)).toHaveLength(36);
+    expect(Object.keys(map.nodes)).toHaveLength(48);
     const forks = Object.values(map.nodes).filter((n) => n.next.length > 1);
     expect(forks).toHaveLength(2);
     expect(validateMap(map).ok).toBe(true);
@@ -449,6 +456,54 @@ describe('minigame e premiação', () => {
     expect(state.players.p1.common).toBe(before.p1 + r.first);
     // p2 ocupa a 3ª posição, então recebe o prêmio de "demais".
     expect(state.players.p2.common).toBe(before.p2 + r.others);
+  });
+
+  // Regressão P1: o motor recusa classificações ambíguas em vez de premiar errado.
+  it('recusa primeira posição vazia com a segunda preenchida', () => {
+    const state = atResults('individual');
+    const antes = state.players.p1.common;
+    const result = tryRun(state, {
+      type: 'submitResults',
+      resultId: 'r1',
+      format: 'individual',
+      ranking: [[], ['p1']],
+    });
+    expect(result.rejected).toBeTruthy();
+    expect(result.rejected).toContain('1ª posição');
+    expect(result.state.players.p1.common).toBe(antes);
+    expect(result.state.phase).toBe('awaitingResults');
+  });
+
+  it('recusa lacuna no meio da classificação', () => {
+    const state = atResults('individual');
+    expect(
+      tryRun(state, {
+        type: 'submitResults', resultId: 'r1', format: 'individual',
+        ranking: [['p0'], [], ['p2']],
+      }).rejected,
+    ).toBeTruthy();
+  });
+
+  it('ignora posições vazias no fim sem recusar', () => {
+    let state = atResults('individual');
+    const antes = state.players.p0.common;
+    state = run(state, {
+      type: 'submitResults', resultId: 'r1', format: 'individual',
+      ranking: [['p0'], [], []],
+    });
+    expect(state.players.p0.common).toBe(antes + state.config.rewards.individual.first);
+  });
+
+  it('o histórico usa as mesmas posições competitivas da premiação', () => {
+    let state = atResults('individual');
+    state = run(state, {
+      type: 'submitResults', resultId: 'r1', format: 'individual',
+      ranking: [['p0', 'p1'], ['p2']],
+    });
+    const detail = state.results[state.results.length - 1].detail;
+    expect(detail).toContain('1º:');
+    expect(detail).toContain('3º:');
+    expect(detail).not.toContain('2º:');
   });
 
   it('confirmar duas vezes não duplica a recompensa', () => {

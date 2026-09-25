@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
 import { MINIGAMES } from '../data/config';
 import { autoTeams, minigameForRound } from '../game/engine';
+import {
+  boxPositions,
+  describePlacement,
+  individualAwards,
+  normalizePlacement,
+} from '../game/placements';
 import type { Command, GameState } from '../game/types';
 
 interface Props {
@@ -16,12 +22,13 @@ export function MinigamePanel({ state, dispatch }: Props) {
   const game = minigameForRound(state, state.round);
   const def = MINIGAMES.find((m) => m.id === (state.minigame?.minigameId ?? game.id)) ?? game;
   const teams = state.minigame?.teams ?? [];
-  const [ranking, setRanking] = useState<string[][]>([]);
+  // Três caixas fixas; a posição competitiva de cada uma é derivada, não é o índice.
+  const [tiers, setTiers] = useState<string[][]>([[], [], []]);
   const [winningTeam, setWinningTeam] = useState<number | null>(null);
   const [review, setReview] = useState(false);
   const resultId = useMemo(() => `res-${state.round}-${Math.random().toString(36).slice(2)}`, [state.round]);
 
-  const unranked = state.order.filter((id) => !ranking.flat().includes(id));
+  const unranked = state.order.filter((id) => !tiers.flat().includes(id));
 
   const rewards = state.config.rewards;
 
@@ -76,13 +83,17 @@ export function MinigamePanel({ state, dispatch }: Props) {
 
   const teamFormat = def.format === 'teams';
 
-  function toggleRank(id: string, tier: number) {
-    setRanking((prev) => {
+  function placeAt(id: string, box: number) {
+    setTiers((prev) => {
       const next = prev.map((t) => t.filter((p) => p !== id));
-      while (next.length <= tier) next.push([]);
-      next[tier] = [...next[tier], id];
-      return next.filter((t, i) => t.length > 0 || i < tier);
+      while (next.length <= box) next.push([]);
+      next[box] = [...next[box], id];
+      return next;
     });
+  }
+
+  function removeFrom(id: string) {
+    setTiers((prev) => prev.map((t) => t.filter((p) => p !== id)));
   }
 
   function movePlayer(id: string, teamIndex: number) {
@@ -98,17 +109,16 @@ export function MinigamePanel({ state, dispatch }: Props) {
       const prize = winningTeam < 0 ? rewards.teams.draw : index === winningTeam ? rewards.teams.winner : rewards.teams.loser;
       for (const id of team) preview[id] = prize;
     });
-  } else if (!teamFormat) {
-    let position = 1;
-    for (const tier of ranking) {
-      const prize = position === 1 ? rewards.individual.first : position === 2 ? rewards.individual.second : rewards.individual.others;
-      for (const id of tier) preview[id] = prize;
-      position += tier.length;
-    }
-    for (const id of unranked) preview[id] = rewards.individual.others;
   }
 
-  const canSubmit = teamFormat ? winningTeam !== null : ranking.flat().length > 0;
+  // Mesma normalização que o motor aplica: a prévia nunca mostra um prêmio que
+  // a confirmação recusaria.
+  const placement = normalizePlacement(state.order, tiers);
+  if (!teamFormat && placement.ok) {
+    Object.assign(preview, individualAwards(state.order, placement.tiers, rewards.individual));
+  }
+  const positions = boxPositions(tiers);
+  const canSubmit = teamFormat ? winningTeam !== null : placement.ok;
 
   return (
     <div className="fullscreen-panel">
@@ -157,33 +167,62 @@ export function MinigamePanel({ state, dispatch }: Props) {
             Clique no gorila para colocá-lo numa posição. Empatados ficam na mesma
             posição e o próximo ocupa a posição seguinte (1º, 1º, 3º).
           </p>
-          {[0, 1, 2].map((tier) => (
-            <div key={tier} className="card-panel" style={{ marginBottom: '0.5rem' }}>
-              <h3>{tier + 1}ª posição</h3>
-              <div className="chip-row">
-                {(ranking[tier] ?? []).map((id) => (
-                  <span key={id} className="player-chip">
-                    <img className="avatar" src={state.players[id].portrait} alt="" />
-                    {state.players[id].name}
-                  </span>
-                ))}
+          {tiers.map((tier, box) => {
+            const position = positions[box];
+            const locked = position === null;
+            return (
+              <div key={box} className="card-panel" style={{ marginBottom: '0.5rem', opacity: locked ? 0.55 : 1 }}>
+                <h3>{locked ? 'Posição bloqueada' : `${position}ª posição`}</h3>
+                {locked && (
+                  <div style={{ color: 'var(--ink-dim)', fontSize: '0.85rem' }}>
+                    Preencha a posição anterior antes de usar esta.
+                  </div>
+                )}
+                <div className="chip-row">
+                  {tier.map((id) => (
+                    <button
+                      key={id}
+                      className="player-chip"
+                      onClick={() => removeFrom(id)}
+                      title="Remover desta posição"
+                    >
+                      <img className="avatar" src={state.players[id].portrait} alt="" />
+                      {state.players[id].name} ✕
+                    </button>
+                  ))}
+                </div>
+                <div className="chip-row" style={{ marginTop: '0.4rem' }}>
+                  {unranked.map((id) => (
+                    <button
+                      key={id}
+                      className="player-chip dim"
+                      disabled={locked}
+                      onClick={() => placeAt(id, box)}
+                    >
+                      <img className="avatar" src={state.players[id].portrait} alt="" />
+                      + {state.players[id].name}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="chip-row" style={{ marginTop: '0.4rem' }}>
-                {unranked.map((id) => (
-                  <button key={id} className="player-chip dim" onClick={() => toggleRank(id, tier)}>
-                    <img className="avatar" src={state.players[id].portrait} alt="" />
-                    + {state.players[id].name}
-                  </button>
-                ))}
-              </div>
+            );
+          })}
+          <button onClick={() => setTiers([[], [], []])}>Limpar classificação</button>
+          {!placement.ok && tiers.flat().length > 0 && (
+            <div className="notice-bar error-bar" style={{ marginTop: '0.5rem' }}>
+              {placement.error}
             </div>
-          ))}
-          <button onClick={() => setRanking([])}>Limpar classificação</button>
+          )}
         </>
       )}
 
       <div className="card-panel" style={{ marginTop: '1rem' }}>
         <h3>Prévia da premiação</h3>
+        {!teamFormat && placement.ok && (
+          <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-dim)' }}>
+            Será registrado: {describePlacement(placement.tiers, (id) => state.players[id].name)}
+          </p>
+        )}
         <div className="reward-preview">
           {state.order.map((id) => (
             <span key={id} className="reward-chip">
@@ -207,7 +246,7 @@ export function MinigamePanel({ state, dispatch }: Props) {
                   type: 'submitResults',
                   resultId,
                   format: teamFormat ? 'teams' : 'individual',
-                  ranking: teamFormat ? undefined : ranking,
+                  ranking: teamFormat || !placement.ok ? undefined : placement.tiers,
                   winningTeam: teamFormat ? winningTeam ?? -1 : undefined,
                 })
               }

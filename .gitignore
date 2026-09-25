@@ -7,3 +7,11 @@ dist
 .env
 .env.*
 !.env.example
+.vercel
+.env*
+!.env.example
+.agents/
+skills-lock.json
+output/
+outputs/
+tmp/

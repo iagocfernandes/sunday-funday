@@ -7,6 +7,7 @@ import { createDefaultMap, validateMap } from '../data/map';
 import { createGame, type PlayerSeed } from '../game/engine';
 import { newSeed } from '../game/rng';
 import type { GameConfig, GameState } from '../game/types';
+import { PlayerPortrait } from '../components/PlayerPortrait';
 
 interface Props {
   demo: boolean;
@@ -77,7 +78,7 @@ export function SetupScreen({ demo, onStart, onCancel }: Props) {
       <div className="setup-grid">
         {names.map((name, index) => (
           <div className="player-row" key={index}>
-            <img className="avatar" src={PORTRAITS[index % PORTRAITS.length]} alt="" style={{ borderColor: DEFAULT_COLORS[index % DEFAULT_COLORS.length] }} />
+            <PlayerPortrait className="avatar" src={PORTRAITS[index % PORTRAITS.length]} alt="" style={{ borderColor: DEFAULT_COLORS[index % DEFAULT_COLORS.length] }} />
             <input
               value={name}
               placeholder={`Gorila ${index + 1}`}

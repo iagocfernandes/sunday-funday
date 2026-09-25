@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { loadSnapshot, parseImport, type Snapshot } from '../persistence/storage';
+import { loadSnapshotDetailed, parseImport, type Snapshot } from '../persistence/storage';
 
 interface Props {
   onNewGame: () => void;
@@ -9,7 +9,8 @@ interface Props {
 }
 
 export function HomeScreen({ onNewGame, onDemo, onContinue, onImport }: Props) {
-  const saved = loadSnapshot();
+  const load = loadSnapshotDetailed();
+  const saved = load?.snapshot ?? null;
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +32,7 @@ export function HomeScreen({ onNewGame, onDemo, onContinue, onImport }: Props) {
           <button className={saved ? '' : 'btn-primary'} onClick={onNewGame}>Nova partida</button>
           <button onClick={() => fileRef.current?.click()}>Importar backup</button>
           <button onClick={onDemo}>Demonstração (8 gorilas)</button>
+          <a href="/?remote=tv" style={{ textAlign: 'center', padding: '0.8rem' }}>Teste: controles pelo celular</a>
         </div>
 
         <input
@@ -48,6 +50,13 @@ export function HomeScreen({ onNewGame, onDemo, onContinue, onImport }: Props) {
             else { setError(null); onImport(result.snapshot); }
           }}
         />
+
+        {load?.origin === 'previous' && (
+          <div className="notice-bar" style={{ marginTop: '1rem', justifyContent: 'center' }}>
+            O último estado salvo estava corrompido ({load.recoveredFrom}). Foi recuperado o
+            estado imediatamente anterior — confira os saldos antes de retomar.
+          </div>
+        )}
 
         {error && (
           <div className="notice-bar error-bar" style={{ marginTop: '1rem', justifyContent: 'center' }}>

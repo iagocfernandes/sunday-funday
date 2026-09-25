@@ -17,20 +17,27 @@ export const DEFAULT_CONFIG: GameConfig = {
   itemWindowMs: 5000, // confirmado
   thiefEnabled: false, // desligado no primeiro ciclo, conforme o plano
   rewards: {
-    individual: { first: 10, second: 6, others: 3 },
-    teams: { winner: 8, loser: 3, draw: 5 },
+    individual: { first: 20, second: 6, others: 0 },
+    teams: { winner: 10, loser: 0, draw: 10 },
   },
-  shopItems: ['dadoDuplo', 'escudo', 'casca', 'reverse'],
+  shopItems: ['dadoDuplo', 'dadoCerteiro', 'trocaTroca', 'mudaBanana', 'preguicao', 'blindado'],
   minigameOrder: [],
-  cardMode: 'physical',
+  cardMode: 'digital',
 };
 
 export const ITEMS: Record<ItemId, ItemDef> = {
+  preguicao: {id:'preguicao',name:'Gorila Preguição',price:5,description:'Escolha um adversário: a próxima rolagem dele fica entre 1 e 3, mesmo com poder de dado.',usage:'active',icon:'🦥'},
+  blindado: {id:'blindado',name:'Gorila Blindado',price:5,description:'Bloqueia automaticamente um efeito prejudicial de Sorte ou Azar contra você. Consumido ao proteger.',usage:'defensive',icon:'🛡️'},
+  dadoCerteiro: { id: 'dadoCerteiro', name: 'Dado Certeiro', price: 5, description: 'Escolha seu resultado de 1 a 10 antes de rolar.', usage: 'active', icon: '🎯' },
+  bananaTurbo: { id: 'bananaTurbo', name: 'Banana Turbo', price: 5, description: 'Some 5 ao seu dado neste turno.', usage: 'active', icon: '⚡' },
+  trocaTroca: { id: 'trocaTroca', name: 'Troca-Troca', price: 5, description: 'Troque de posição com um adversário aleatório. Depois role normalmente.', usage: 'active', icon: '🔀' },
+  maoNoBolso: { id: 'maoNoBolso', name: 'Mão no Bolso', price: 8, description: 'Escolha um adversário e roube um poder aleatório dele.', usage: 'active', icon: '🎒' },
+  mudaBanana: { id: 'mudaBanana', name: 'Muda a Banana!', price: 5, description: 'Faça a banana dourada nascer em outra árvore Fábio aleatória.', usage: 'active', icon: '🌳' },
   dadoDuplo: {
     id: 'dadoDuplo',
-    name: 'Dado duplo',
+    name: 'Dado Duplo',
     price: 5,
-    description: 'Dobra o resultado do próximo dado deste turno.',
+    description: 'Role dois dados e ande a soma dos resultados.',
     usage: 'active',
     icon: '🎲',
   },
@@ -113,11 +120,9 @@ export const DEFAULT_COLORS = [
 export const DEFAULT_SYMBOLS = ['★', '▲', '●', '◆', '■', '✦', '♥', '⬟', '✚', '❋'];
 
 export const PORTRAITS = [
-  'assets/portraits/gorila-1.png',
-  'assets/portraits/gorila-2.png',
-  'assets/portraits/gorila-3.png',
-  'assets/portraits/gorila-4.png',
-  'assets/portraits/gorila-5.png',
+  '/assets/characters/arthur-v1.png',
+  '/assets/characters/mari-v1.png',
+  '/assets/characters/milena-v1.png',
 ];
 
 export const DEMO_NAMES = [

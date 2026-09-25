@@ -80,8 +80,12 @@ tela espelhada.
   Clicar em *Usar carta* suspende o prazo; cancelar significa não usar item e a
   janela não recomeça.
 - **Pausar / Retomar**, **Velocidade** (normal/rápida) e **Desfazer** ficam
-  sempre disponíveis. A velocidade nunca encurta a janela de 5 s nem confirma
+  sempre disponíveis. O Desfazer pertence a uma única partida: abrir outra
+  partida (nova ou importada) descarta a pilha da anterior. A velocidade nunca encurta a janela de 5 s nem confirma
   decisões.
+- Nas provas individuais, as posições usam classificação competitiva: empatados
+  no primeiro dividem a 1ª posição e o seguinte ocupa a 3ª. Não é possível
+  preencher uma posição deixando a anterior vazia.
 - Depois do último turno abre a prova presencial. O jogo fica parado nessa tela
   enquanto as pessoas jogam. O anfitrião registra o resultado, revisa a prévia da
   premiação e confirma. Confirmar duas vezes não duplica nada.
@@ -102,8 +106,12 @@ Para retomar: abra o aplicativo, clique em **Continuar partida** e depois em
 - Autosave em `localStorage` após cada comando aceito.
 - **Exportar backup** (painel do anfitrião) baixa um JSON a qualquer momento.
 - Um backup é baixado automaticamente no fim de cada rodada.
-- **Importar backup** na tela inicial valida schema, IDs e referências. Um
-  arquivo inválido é recusado sem destruir a partida atual.
+- **Importar backup** na tela inicial valida schema, enums, números, inventários,
+  fase, decisão pendente e todas as referências. Um arquivo inválido é recusado
+  sem gravar nada: a partida atual e o último estado válido ficam intactos.
+- A mesma validação roda ao **retomar**. Se o último autosave estiver corrompido,
+  a tela inicial avisa e recupera o snapshot imediatamente anterior — confira os
+  saldos antes de clicar em Retomar.
 - Se a gravação falhar (cota cheia, por exemplo), o aplicativo **para a
   automação**, mostra um alerta persistente e oferece exportação. Ele nunca diz
   "salvo" quando não salvou.
@@ -178,3 +186,16 @@ A única exceção é a **janela de 5 segundos** para itens ativos, que é decis
 confirmada e não é editável pela interface.
 
 O **ladrão** vem desligado por configuração, conforme o plano.
+
+## Protótipo: controles pelo celular
+
+Abra `/?remote=tv` para criar uma sala de teste e exibir o QR code. Dois a dez
+jogadores podem entrar pelo celular e rolar um dado 1–10 na própria vez, durante
+três rodadas. Resultados são salvos no servidor e a vez passa automaticamente.
+O anfitrião pode rolar por um jogador. Este teste é separado da partida local e
+não inclui ainda o movimento do tabuleiro, poderes ou minigames.
+
+Veja `docs/TESTE_CONTROLES_CELULAR.md` para operação, recuperação e limites.
+Para desenvolver: `npm run remote:api` e `npm run dev` em terminais separados.
+O banco conectado pela Vercel fornece as variáveis em `.env.local`; não inclua
+essas credenciais no cliente ou no repositório.

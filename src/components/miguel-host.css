@@ -1,0 +1,130 @@
+.miguel-host {
+  position: absolute;
+  z-index: 75;
+  top: 100px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(430px, calc(100% - 40px));
+  pointer-events: none;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  animation: miguel-host-in 160ms ease-out;
+}
+
+.miguel-host__face {
+  position: relative;
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border: 3px solid #ffd34d;
+  border-radius: 50%;
+  background: #193f35;
+  box-shadow: 0 4px 14px #0008;
+}
+
+.miguel-host__sprite,
+.miguel-host__fallback {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.miguel-host__sprite {
+  background-image: url('/assets/host/miguel-expressions.png');
+  background-size: 200% 200%;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+}
+
+.miguel-host--happy .miguel-host__sprite { background-position: 100% 0; }
+.miguel-host--mischievous .miguel-host__sprite { background-position: 0 100%; }
+.miguel-host--sad .miguel-host__sprite { background-position: 100% 100%; }
+
+.miguel-host__fallback {
+  object-fit: cover;
+  object-position: 50% 20%;
+}
+
+.miguel-host__sprite-probe {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.miguel-host__name {
+  position: absolute;
+  top: 82px;
+  left: 7px;
+  padding: 4px 7px;
+  border-radius: 7px;
+  background: #ffd34d;
+  color: #101514;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.miguel-host__bubble {
+  width: 280px;
+  max-width: 280px;
+  padding: 10px 14px;
+  border: 2px solid #ffd34d;
+  border-radius: 14px 14px 14px 4px;
+  background: #101514f5;
+  color: #fff8e5;
+  box-shadow: 0 5px 18px #0007;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.miguel-during-card {
+  top: auto;
+  right: auto;
+  bottom: 28px;
+  left: 28px;
+}
+
+.miguel-host__dismiss {
+  pointer-events: auto;
+  width: 24px;
+  height: 24px;
+  margin-left: -6px;
+  padding: 0;
+  border: 1px solid #ffffff55;
+  border-radius: 50%;
+  background: #101514dd;
+  color: #fff8e5;
+  font-size: 18px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+@media (max-width: 650px) {
+  .miguel-host { top: 86px; right: 10px; max-width: calc(100% - 20px); }
+  .miguel-host__face { width: 76px; height: 76px; border-width: 2px; }
+  .miguel-host__bubble { width: min(220px, calc(100vw - 142px)); max-width: calc(100vw - 142px); padding: 8px 10px; font-size: 12px; }
+  .miguel-host__name { top: 64px; left: 5px; font-size: 13px; }
+  .miguel-host__dismiss { width: 21px; height: 21px; font-size: 15px; line-height: 16px; }
+  .miguel-during-card { top: auto; right: auto; bottom: 18px; left: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .miguel-host { animation: none; }
+}
+
+@keyframes miguel-host-in {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Keep the host over the horizon, away from playable spaces. */
+@media(min-width:1101px){
+ .miguel-host:not(.miguel-during-card){top:16px;left:calc(50% - 210px);right:auto}
+}
+.miguel-host__bubble{font-size:14px;font-weight:650;line-height:1.35}

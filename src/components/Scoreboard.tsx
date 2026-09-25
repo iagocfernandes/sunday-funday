@@ -1,5 +1,6 @@
 import { minigameForRound, ranking } from '../game/engine';
 import type { GameState } from '../game/types';
+import { PlayerPortrait } from './PlayerPortrait';
 
 export function Scoreboard({ state }: { state: GameState }) {
   const rows = ranking(state);
@@ -32,7 +33,7 @@ export function Scoreboard({ state }: { state: GameState }) {
                 <td>{shown}</td>
                 <td>
                   <div className="player-cell">
-                    <img className="avatar" src={player.portrait} alt="" style={{ borderColor: player.color }} />
+                    <PlayerPortrait className="avatar" src={player.portrait} alt="" style={{ borderColor: player.color }} />
                     <span className="sym" style={{ color: player.color }}>{player.symbol}</span>
                     <span>{player.name}</span>
                   </div>

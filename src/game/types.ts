@@ -1,6 +1,6 @@
 /** Tipos do domínio. O motor é puro: não conhece React, DOM nem timers. */
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 5;
 
 export type NodeKind =
   | 'start'
@@ -11,7 +11,8 @@ export type NodeKind =
   | 'shop'
   | 'pedestal'
   | 'thief'
-  | 'blank';
+  | 'blank'
+  | 'duel';
 
 export interface BoardNode {
   id: string;
@@ -24,15 +25,24 @@ export interface BoardNode {
   label?: string;
 }
 
+export interface BoardStop {
+  id: string; kind: 'shop' | 'tree' | 'iagugu'; name: string;
+  from: string; to: string;
+  /** Posição da barraca/árvore. O acesso intercepta a aresta from → to. */
+  x: number; y: number;
+  artX?: number; artY?: number;
+}
+
 export interface BoardMap {
   id: string;
   nodes: Record<string, BoardNode>;
   startNodeId: string;
   /** Locais possíveis do pedestal da banana dourada. */
   pedestalSpots: string[];
+  stops?: BoardStop[];
 }
 
-export type ItemId = 'dadoDuplo' | 'escudo' | 'casca' | 'reverse';
+export type ItemId = 'dadoDuplo' | 'escudo' | 'casca' | 'reverse' | 'dadoCerteiro' | 'bananaTurbo' | 'trocaTroca' | 'maoNoBolso' | 'mudaBanana' | 'preguicao' | 'blindado';
 
 export interface ItemDef {
   id: ItemId;
@@ -51,7 +61,8 @@ export type CardEffectType =
   | 'loseCommon'
   | 'grantItem'
   | 'moveBack'
-  | 'attackCommon';
+  | 'attackCommon'
+  | 'stealCommon' | 'stealGolden' | 'stealPower' | 'stealHalf' | 'moveForward' | 'teleportTree' | 'allInDuel' | 'social' | 'loseGolden';
 
 export interface CardDef {
   id: string;
@@ -62,6 +73,8 @@ export interface CardDef {
   effectType: CardEffectType;
   amount: number;
   grantsItem?: ItemId;
+  weight?: number;
+  durationRounds?: number;
   targetRule: 'self' | 'otherPlayer';
   blockable: boolean;
   reversible: boolean;
@@ -96,7 +109,7 @@ export interface GameConfig {
   rewards: RewardTable;
   shopItems: ItemId[];
   minigameOrder: string[];
-  cardMode: 'physical';
+  cardMode: 'physical' | 'digital';
 }
 
 export interface PlayerItem {
@@ -117,6 +130,8 @@ export interface Player {
   inventory: PlayerItem[];
   /** Histórico real de nós percorridos (usado por recuo). */
   stepHistory: string[];
+  slowNextRoll?: boolean;
+  tasks?: {cardId: string; untilRound: number}[];
 }
 
 export type Phase =
@@ -137,6 +152,13 @@ export type Phase =
   | 'finished';
 
 export type Pending =
+  | {kind: 'discardPower'; playerId: string; incoming: PlayerItem}
+  | { kind: 'iagugu'; playerId: string; nodeId: string }
+  | { kind: 'duelBet'; playerId: string; opponentId: string; maxBet: number }
+  | { kind: 'duelResult'; playerId: string; opponentId: string; bet: number; allIn?: boolean }
+  | { kind: 'harvest'; playerId: string; treeId: string; nextTreeId: string }
+  | { kind: 'chooseDice'; playerId: string; uid: string }
+  | { kind: 'stealItem'; playerId: string; uid: string; candidates: string[] }
   | { kind: 'path'; playerId: string; options: string[] }
   | { kind: 'shop'; playerId: string; nodeId: string; items: ItemId[] }
   | { kind: 'pedestal'; playerId: string; nodeId: string; price: number }
@@ -176,6 +198,8 @@ export interface Movement {
   /** Movimento por carta não ativa passagem nem destino. */
   activatesSpaces: boolean;
   direction: 'forward' | 'back';
+  teleport?: boolean;
+  transit?: { stopId: string; to: string };
 }
 
 export interface MinigameRoundState {
@@ -224,6 +248,10 @@ export interface GameState {
   dice: number | null;
   /** Multiplicador aplicado ao próximo dado (item dado duplo). */
   diceMultiplier: number;
+  diceBonus?: number;
+  chosenDice?: number;
+  catalogVersion?: number;
+  cardDecks?: Partial<Record<CardCategory, string[]>>;
   movement: Movement | null;
   pending: Pending | null;
   itemWindow: ItemWindowState | null;
@@ -246,6 +274,11 @@ export interface GameState {
 /* ---------- Comandos ---------- */
 
 export type Command =
+  | {type: 'discardPower'; uid: string}
+  | { type: 'rob'; targetId: string; currency: 'common' | 'golden' }
+  | { type: 'skipIagugu' }
+  | { type: 'setDuelBet'; amount: number }
+  | { type: 'resolveDuel'; winnerId: string | null }
   | { type: 'startRound' }
   | { type: 'beginTurn' }
   | { type: 'openItemWindow' }
@@ -256,7 +289,10 @@ export type Command =
   | { type: 'rollDice' }
   | { type: 'step' }
   | { type: 'choosePath'; nodeId: string }
-  | { type: 'buyItem'; itemId: ItemId }
+  | { type: 'buyItem'; itemId: ItemId; discardUid?: string }
+  | { type: 'continueHarvest' }
+  | { type: 'chooseDice'; value: number }
+  | { type: 'stealItem'; targetId: string }
   | { type: 'skipShop' }
   | { type: 'buyGolden' }
   | { type: 'skipPedestal' }

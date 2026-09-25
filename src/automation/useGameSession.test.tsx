@@ -2,6 +2,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { StrictMode, useEffect, useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createLegacyMap } from '../data/map';
 import { createGame } from '../game/engine';
 import type { GameState } from '../game/types';
 import { useGameSession, type Session } from './useGameSession';
@@ -16,7 +17,7 @@ function game(count = 3, overrides = {}): GameState {
       portrait: 'x.png',
     })),
     { rounds: 1, ...overrides },
-    { seed: 4242, shuffleOrder: false },
+    { seed: 4242, shuffleOrder: false, map: createLegacyMap() },
   );
 }
 
@@ -297,6 +298,47 @@ describe('desfazer', () => {
     const frozen = current!.state.revision;
     await advance(5000);
     expect(current!.state.revision).toBe(frozen);
+  });
+});
+
+describe('desfazer entre partidas', () => {
+  // Regressão P1: jogar A, sair, abrir B e clicar Desfazer não pode trazer A.
+  it('não restaura estado da partida anterior', async () => {
+    const partidaA = game();
+    mount(partidaA);
+    await call(() => {
+      current!.dispatch({ type: 'startRound' });
+      current!.resume();
+    });
+    await advance(1600);
+    const saldoA = current!.state.players.p0.common;
+    const idA = current!.state.gameId;
+    cleanup();
+
+    // Nova partida, gameId diferente, mesma aba e mesmo localStorage.
+    const partidaB = game();
+    partidaB.gameId = `${idA}-outra`;
+    partidaB.players.p0.common = 999;
+    mount(partidaB);
+
+    expect(current!.undoAvailable).toBe(false);
+    await call(() => current!.undo());
+    expect(current!.state.gameId).toBe(partidaB.gameId);
+    expect(current!.state.players.p0.common).toBe(999);
+    expect(current!.state.players.p0.common).not.toBe(saldoA);
+  });
+
+  it('continua desfazendo dentro da mesma partida', async () => {
+    mount(game());
+    await call(() => {
+      current!.dispatch({ type: 'startRound' });
+      current!.resume();
+    });
+    await advance(1600);
+    const antes = current!.state.revision;
+    expect(current!.undoAvailable).toBe(true);
+    await call(() => current!.undo());
+    expect(current!.state.revision).toBeLessThan(antes);
   });
 });
 

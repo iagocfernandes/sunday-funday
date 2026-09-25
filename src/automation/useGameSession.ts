@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CARD_REVEAL_MS } from '../data/cards';
 import { applyCommand, nextAutoCommand, statusText } from '../game/engine';
 import type { Command, DomainEvent, GameState } from '../game/types';
 import { isBlocking, scenesFor, type Scene } from '../presentation/manifest';
 import {
   acquireTabLock,
   clearUndo,
+  dropForeignUndo,
   forceTakeTabLock,
   downloadBackup,
   popUndo,
@@ -101,7 +103,11 @@ export function useGameSession(options: SessionOptions): Session {
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
-  const [undoAvailable, setUndoAvailable] = useState(() => undoDepth() > 0);
+  const [undoAvailable, setUndoAvailable] = useState(() => {
+    // Abrir outra partida descarta a pilha de desfazer da anterior.
+    dropForeignUndo(options.initialState.gameId);
+    return undoDepth(options.initialState.gameId) > 0;
+  });
   const [tabConflict, setTabConflict] = useState(false);
 
   /** Geração da execução: invalida qualquer callback já enfileirado. */
@@ -237,7 +243,7 @@ export function useGameSession(options: SessionOptions): Session {
       if (pausedRef.current) return;
       if (stateRef.current.revision !== revision) return;
       dispatchRef.current(command);
-    }, delayFor(state.phase, speed));
+    }, state.pending?.kind==='cardPreview'?CARD_REVEAL_MS:state.pending?.kind==='harvest'?3000:delayFor(state.phase, speed));
 
     return () => clearTimeout(timer);
   }, [state, manualPaused, blockingScene, speed, tabConflict, saveError]);
@@ -299,7 +305,7 @@ export function useGameSession(options: SessionOptions): Session {
 
   /* -------------------- desfazer -------------------- */
   const undo = useCallback(() => {
-    const previous = popUndo();
+    const previous = popUndo(stateRef.current.gameId);
     if (!previous) {
       setUndoAvailable(false);
       return;
@@ -311,7 +317,7 @@ export function useGameSession(options: SessionOptions): Session {
     stateRef.current = previous;
     setState(previous);
     setItemRemainingMs(previous.itemWindow?.remainingMs ?? null);
-    setUndoAvailable(undoDepth() > 0);
+    setUndoAvailable(undoDepth(previous.gameId) > 0);
     persist(previous, { itemWindowRemainingMs: previous.itemWindow?.remainingMs ?? null, speed });
   }, [invalidate, persist, speed]);
 
