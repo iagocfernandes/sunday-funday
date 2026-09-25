@@ -83,8 +83,8 @@ export function BoardTv({ reply, act, busy, joinUrl }: { reply: RoomReply; act: 
   const player=activePlayer(state);
   const [hostDecision,setHostDecision]=useState(false);
   const [drawer,setDrawer]=useState(false);
-  const [camera,setCamera]=useState(true);
-  const [living,setLiving]=useState(true);
+  const [camera,setCamera]=useState(false);
+  const [living,setLiving]=useState(false);
   const [hostEnabled,setHostEnabled]=useState(true);
   const [voiceEnabled,setVoiceEnabled]=useState(true);
   const [narrating,setNarrating]=useState(false);

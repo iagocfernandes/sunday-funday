@@ -18,14 +18,17 @@ export function BoardV4({state,highlightNodes=[],onNodeClick,living=false,paused
   const motion=boardMotionFrame(state);
   const clip=`${uid}-portrait`,rim=`${uid}-rim`,shine=`${uid}-shine`;
   const at=(x:number,y:number)=>`${x*1000} ${y*563}`;
-  return <svg viewBox="0 0 1000 563" className="island-board" style={{width:'100%',height:'100%'}} role="group" aria-label={`Ilha dos gorilas: ${Object.keys(state.map.nodes).length} casas e paradas entre casas`}>
+  return <div className="island-board" data-board-layered="true">
+    <img className="board-art-layer" src="/assets/board/ilha-v4.png" alt="" aria-hidden="true" draggable={false}/>
+    {living&&<svg className="board-ambient-layer" viewBox="0 0 1000 563" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+      <LivingIsland paused={paused}/>
+    </svg>}
+    <svg className="board-gameplay-layer" viewBox="0 0 1000 563" preserveAspectRatio="xMidYMid meet" role="group" aria-label={`Ilha dos gorilas: ${Object.keys(state.map.nodes).length} casas e paradas entre casas`}>
     <defs>
       <linearGradient id={rim} x2="0" y2="1"><stop stopColor="#fff1cf"/><stop offset=".55" stopColor="#d4ba83"/><stop offset="1" stopColor="#9d7b4d"/></linearGradient>
       <linearGradient id={shine} x2="0" y2="1"><stop stopColor="#fff" stopOpacity=".28"/><stop offset="1" stopColor="#000" stopOpacity=".12"/></linearGradient>
       <clipPath id={clip}><circle r="13"/></clipPath>
     </defs>
-    <image href="/assets/board/ilha-v4-2x.webp" width="1000" height="563"/>
-    {living&&<LivingIsland paused={paused}/>}
     {state.map.stops?.map(stop=>{
       const activeTree=stop.kind==='tree'&&stop.id===state.pedestalNodeId;
       const visiting=state.movement?.transit?.stopId===stop.id;
@@ -90,5 +93,6 @@ export function BoardV4({state,highlightNodes=[],onNodeClick,living=false,paused
       </g>;
     })}
     <g data-board-legend="true" transform="translate(280 548)"><rect x="-12" y="-12" width="440" height="23" rx="11" fill="#17362c" opacity=".92"/>{(['plus','minus','luck','unluck','duel'] as NodeKind[]).map((kind,i)=><g key={kind} transform={`translate(${i*85} 0)`}><circle r="7" fill={colors[kind]}/><g transform="scale(.65)"><Symbol kind={kind}/></g><text x="12" y="3" fill="#ffefd0" fontSize="9">{labels[kind]}</text></g>)}</g>
-  </svg>;
+    </svg>
+  </div>;
 }

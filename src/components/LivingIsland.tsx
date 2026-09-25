@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import './living-island.css';
 
-const ART = '/assets/board/ilha-v4-2x.webp';
+const ART = '/assets/board/ilha-v4.png';
 
 // Coordenadas calibradas para a arte aprovada em viewBox 1000×563.
 // Trocar a imagem de base exige recalibrar máscaras; não há visão computacional em runtime.
