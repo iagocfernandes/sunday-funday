@@ -237,3 +237,8 @@ body { font-family:'Avenir Next','Arial Black','Segoe UI',system-ui,sans-serif; 
 .ar2-announcement-players>div{display:grid;justify-items:center;gap:8px}
 .ar2-announcement-players .player-portrait{width:80px;height:80px}
 .ar2-announcement-card>button{background:#f6cf45;color:#17271d;border:0;padding:12px 22px;border-radius:12px;font-weight:800}
+
+/* Atalho do anfitrião acima da faixa de placar, sem abrir o menu. */
+.remote-app .tv-quick-roll,.tv-quick-roll{position:absolute;right:24px;bottom:128px;z-index:25;display:grid;justify-items:center;gap:2px;min-width:112px;padding:12px 16px;border:2px solid #ffe28a;border-radius:20px;background:#f6cf45;color:#14291e;box-shadow:0 5px 0 #a77920,0 8px 24px #0005;cursor:pointer}
+.tv-quick-roll>span{font-size:48px;line-height:1}.tv-quick-roll>strong{font-size:17px}.tv-quick-roll>small{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.tv-quick-roll:disabled{opacity:.45;cursor:default}
+@media(max-height:650px){.remote-app .tv-quick-roll,.tv-quick-roll{bottom:108px;right:14px;padding:8px 12px}.tv-quick-roll>span{font-size:34px}}
