@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {createGame,applyCommand,nextAutoCommand} from './engine';
 import {CARDS_BY_ID,DIGITAL_CARDS} from '../data/cards';
-import {ITEMS} from '../data/config';
+import {IAGUGU_COIN_CAP,IAGUGU_GOLDEN_PRICE,ITEMS} from '../data/config';
 import {validateGameState} from '../persistence/validate';
 import type {GameState,Command} from './types';
 const setup=()=>createGame(['Iago','Milena','AR2'].map((name,i)=>({id:`p${i}`,name,color:'#abc',symbol:'X',portrait:'/x.png'})),{}, {seed:91,shuffleOrder:false});
@@ -9,7 +9,7 @@ function run(s:GameState,c:Command){const r=applyCommand(s,{commandId:`t-${s.rev
 function preview(s:GameState,id:string){s.phase='awaitingInteraction';s.pending={kind:'cardPreview',playerId:s.order[s.activeIndex],cardId:id,category:CARDS_BY_ID[id].category};return s;}
 const card=(s:GameState,id:string)=>run(preview(s,id),{type:'confirmCard'});
 describe('cartas da Milena',()=>{
- it('13 eventos, 6 poderes a 5 moedas, raras cinco vezes menos frequentes que comuns',()=>{const s=setup();expect(DIGITAL_CARDS).toHaveLength(13);expect(s.config.shopItems).toHaveLength(6);expect(s.config.shopItems.map(id=>ITEMS[id].price)).toEqual([5,5,5,5,5,5]);expect(DIGITAL_CARDS.filter(c=>c.weight===1)).toHaveLength(4);});
+ it('13 eventos, loja com os preços do balanceamento, raras cinco vezes menos frequentes que comuns',()=>{const s=setup();expect(DIGITAL_CARDS).toHaveLength(13);expect(s.config.shopItems).toHaveLength(6);expect(s.config.shopItems.map(id=>ITEMS[id].price)).toEqual([6,8,8,4,5,3]);expect(ITEMS.dadoDuplo.price).toBe(6);expect(ITEMS.dadoCerteiro.price).toBe(8);expect(ITEMS.trocaTroca.price).toBe(8);expect(ITEMS.mudaBanana.price).toBe(4);expect(ITEMS.preguicao.price).toBe(5);expect(ITEMS.blindado.price).toBe(3);expect(ITEMS.bananaTurbo.price).toBe(4);expect(ITEMS.maoNoBolso.price).toBe(6);expect(ITEMS.casca.price).toBe(2);expect(ITEMS.escudo.price).toBe(3);expect(ITEMS.reverse.price).toBe(4);expect(s.config.goldenPrice).toBe(20);expect(IAGUGU_GOLDEN_PRICE).toBe(50);expect(IAGUGU_COIN_CAP).toBe(10);expect(DIGITAL_CARDS.filter(c=>c.weight===1)).toHaveLength(4);});
  it('carta digital tem avanço automático; física continua por código',()=>{const s=preview(setup(),'MA01');expect(nextAutoCommand(s)).toEqual({type:'confirmCard'});s.config.cardMode='physical';expect(nextAutoCommand(s)).toBeNull();});
  it('rouba banana e metade das moedas, arredondando para baixo, sem criar saldo',()=>{let s=setup();s.players.p1.golden=2;s=card(s,'MS01');s=run(s,{type:'chooseTarget',targetId:'p1'});expect(s.players.p0.golden).toBe(1);expect(s.players.p1.golden).toBe(1);s.players.p1.common=11;s=card(s,'MS04');s=run(s,{type:'chooseTarget',targetId:'p1'});expect(s.players.p0.common).toBe(15);expect(s.players.p1.common).toBe(6);});
  it('Pickpocket exige descarte de uma carta antiga quando a mão está cheia',()=>{let s=setup();s.players.p0.inventory=['a','b','c'].map(uid=>({uid,itemId:'dadoDuplo'}));s.players.p1.inventory=[{uid:'stolen',itemId:'dadoCerteiro'}];s=card(s,'MS03');s=run(s,{type:'chooseTarget',targetId:'p1'});expect(s.pending?.kind).toBe('discardPower');expect(s.players.p0.inventory).toHaveLength(3);expect(s.players.p1.inventory).toHaveLength(0);s=run(s,{type:'discardPower',uid:'a'});expect(s.players.p0.inventory.map(i=>i.uid)).toEqual(['b','c','stolen']);expect(applyCommand(s,{commandId:'dup',expectedRevision:s.revision,command:{type:'discardPower',uid:'b'}}).rejected).toBeDefined();});

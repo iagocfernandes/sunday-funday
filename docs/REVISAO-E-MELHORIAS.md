@@ -25,7 +25,7 @@ O loop de uma rodada, no modo da festa:
 
 Mapa novo: `ilha-dos-gorilas-v5`, 48 casas (início, ganhos, perdas, sorte, azar e três duelos). Lojas, quatro árvores do Fábio e o Iagugu ficam entre casas e não gastam passo. Salas antigas guardam o mapa com que foram criadas.
 
-Economia que o código usa hoje, ainda marcada como proposta em `src/data/config.ts`: 8 rodadas no jogo novo e 2 na demonstração, dado 1–10, 10 moedas iniciais, banana a 20, casa boa +3, casa ruim até −3, +10 ao passar pelo início numa volta normal. A loja vende seis poderes a 5 moedas: Dado Duplo, Dado Certeiro, Troca-Troca, Muda a Banana!, Gorila Preguição e Gorila Blindado. O documento das cartas da Milena fala em 10 moedas. O código cobra 5. Isso precisa de uma decisão antes de imprimir ou de explicar a regra em voz alta.
+Economia que o código usa hoje: 8 rodadas no jogo novo e 2 na demonstração, dado 1–10, 10 moedas iniciais, banana a 20, casa boa +3, casa ruim até −3, +10 ao passar pelo início numa volta normal. A loja não cobra mais o mesmo preço nos seis poderes. Desde 26/09, conforme `docs/BALANCEAMENTO-PODERES.md`: Dado Duplo 6, Dado Certeiro 8, Troca-Troca 8, Muda a Banana! 4, Gorila Preguição 5, Gorila Blindado 3. O Iagugu continua roubando até 10 moedas de graça e cobra 50 por uma banana. O texto antigo das cartas da Milena, que falava em 10 moedas para todos os poderes, foi alinhado a essa tabela.
 
 ## Diagnóstico
 
@@ -150,7 +150,7 @@ Tudo que decide se a festa funciona:
 
 - uma página de operação para quem está na TV;
 - ensaio de uma rodada de verdade no endereço publicado, com dois celulares;
-- decidir rodadas, preço da loja e a prova de cada rodada;
+- confirmar rodadas e a prova de cada rodada (os preços da loja já estão na tabela de 26/09);
 - esconder ou rotular o ladrão que não existe;
 - não redesenhar a ilha.
 
@@ -162,7 +162,7 @@ Impacto pensado para domingo, 27/09. Esforço é tamanho da mudança, não calen
 |---|---|---|---|---|
 | 1 | Guia de uma página do anfitrião e correção do README. Dizer que a festa abre em `/?remote=tv` no site publicado, que o celular entra pelo QR, e que `/?mode=local` é o fallback sem internet. Incluir pausa, carta, duelo, prova, backup e o que fazer se a sala não conectar. | Alto. Evita operar a festa pelo documento errado. | Baixo. Só texto. | Não |
 | 2 | Ensaio de uma rodada no endereço publicado, com TV e dois celulares: dado, bifurcação, loja, uma carta, uma pausa, recarregar a TV, registrar a prova uma vez. Anotar só o que quebrar. | Altíssimo. É o único teste que o automatizado não faz. | Médio. É gente e aparelho, não um refactor. | Não |
-| 3 | Fechar os números da festa e o ladrão fantasma. Escolher rodadas, preço (5 ou 10) e a ordem das provas. Na preparação local, desabilitar o checkbox do ladrão com a frase “o roubo é o Iagugu”. Não implementar um segundo ladrão. | Alto. A regra falada e a regra cobrada precisam ser a mesma. | Baixo a médio. Configuração e um controle de UI. | Não |
+| 3 | Os preços da loja e do Iagugu foram fechados em 26/09 (`docs/BALANCEAMENTO-PODERES.md`). Ainda faltam as rodadas, se forem diferentes de 8, e a ordem das provas. Na preparação local, desabilitar o checkbox do ladrão com a frase “o roubo é o Iagugu”. Não implementar um segundo ladrão. | Alto. A regra falada e a regra cobrada precisam ser a mesma. | Baixo a médio. Configuração e um controle de UI. | Não |
 | 4 | Ilustrar as 13 cartas sem trocar o texto nem o efeito. Referência: `personagens-oficiais.png` e a ilha. Orçar com `dry_run`, gerar um lote pequeno, olhar na TV, só então copiar os PNG para `public/assets`. | Médio na festa, alto no acabamento. A carta já funciona em CSS. | Médio, mais o tempo de revisão visual. | Sim. Créditos Scenario. Plano grátis é curto e sem licença comercial. |
 | 5 | Trocar a trilha procedural e os SFX de oscilador por samples locais, e gravar as falas de duelo e de vitória de prova que o código já espera. O hook de áudio permanece. Sem sample aprovado, o jogo continua com o som atual. | Médio. O som atual já toca. A fala que falta é o buraco mais audível. | Médio. | Sim, se a geração for na Scenario. Um arquivo gravado por fora também serve e não gasta crédito. |
 
@@ -173,7 +173,7 @@ Ficam de fora desta lista, de propósito: mundo 3D, rig, skybox, trailer, store 
 Quando for a hora de codar, a rodada é esta, nesta ordem. Esta revisão não executa a rodada.
 
 1. Escrever o guia do anfitrião em `docs/` e alinhar o README e o link “teste” da home local. Sem mudar regra.
-2. Combinar com o Iago os três números: rodadas, preço dos poderes, provas do dia. Aplicar só o que ele confirmar. Desabilitar o checkbox do ladrão.
+2. Os preços dos poderes já estão no código. Combinar rodadas e as provas do dia se forem diferentes do padrão. Desabilitar o checkbox do ladrão.
 3. Rodar o ensaio do item 2 da tabela no site publicado. Corrigir somente o que impedir de terminar uma rodada.
 4. Só se sobrar crédito e vontade: um lote de cartas e, se couber, os dois clipes de voz. Nada entra no jogo sem a pessoa olhar em tela cheia. A ilha `ilha-v4.png` não é regenerada.
 
@@ -181,4 +181,4 @@ Critério para parar a rodada: uma sala nova no site publicado completa uma roda
 
 ## Correções neste pull request
 
-Nenhuma alteração de código. O jogo local inicia, rola o dado e resolve a loja. A sala remota falha neste ambiente porque o Redis não está configurado, e a interface já avisa. Isso não é um defeito pequeno e seguro para “consertar” no escuro: apontar o cliente para outro backend mudaria o deploy da festa.
+A primeira entrega deste pull request era só o documento de revisão. Em 26/09 entrou o balanceamento de preços: números da loja, do Iagugu e os textos que citavam o valor antigo. Mecânica, mapa e layout não mudaram. A sala remota continua dependendo do Redis no deploy; isso não foi mexido.

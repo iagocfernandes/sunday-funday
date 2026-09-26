@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { CARDS_BY_ID, cardsOfCategory } from '../data/cards';
 import { routeHint } from '../data/map';
 import { PowerArt } from './PowerCard';
-import { ITEMS } from '../data/config';
+import { IAGUGU_COIN_CAP, IAGUGU_GOLDEN_PRICE, ITEMS } from '../data/config';
 import { usableActiveItems } from '../game/engine';
 import type { Command, GameState, ItemId } from '../game/types';
 
@@ -39,11 +39,11 @@ export function DecisionPanel({ state, dispatch, canResolveDuel = true }: Props)
     case 'iagugu': {
       const actor=state.players[pending.playerId]; const target=state.players[victim];
       return <Shell title="Iagugu · o macaquito ladrão" why="Uma ação por visita. Escolha quem vai perder moedas ou uma banana.">
-        <p>Seu saldo: {actor.common} moedas. Roubar moedas é grátis; banana custa 40.</p>
+        <p>Seu saldo: {actor.common} moedas. Roubar moedas é grátis; banana custa {IAGUGU_GOLDEN_PRICE}.</p>
         <div className="options">{state.order.filter(id=>id!==actor.id).map(id=><button key={id} className="option-card" aria-pressed={victim===id} onClick={()=>setVictim(id)}><strong>{victim===id?'✓ ':''}{name(id)}</strong><small>{state.players[id].common} moedas · {state.players[id].golden} bananas</small></button>)}</div>
         <div className="options">
-          <button className="option-card" disabled={!target || target.common<1} onClick={()=>void dispatch({type:'rob',targetId:victim,currency:'common'})}>Roubar até 10 moedas · grátis</button>
-          <button className="option-card" disabled={!target || target.golden<1 || actor.common<40} onClick={()=>void dispatch({type:'rob',targetId:victim,currency:'golden'})}>Roubar 1 banana · pagar 40 moedas</button>
+          <button className="option-card" disabled={!target || target.common<1} onClick={()=>void dispatch({type:'rob',targetId:victim,currency:'common'})}>Roubar até {IAGUGU_COIN_CAP} moedas · grátis</button>
+          <button className="option-card" disabled={!target || target.golden<1 || actor.common<IAGUGU_GOLDEN_PRICE} onClick={()=>void dispatch({type:'rob',targetId:victim,currency:'golden'})}>Roubar 1 banana · pagar {IAGUGU_GOLDEN_PRICE} moedas</button>
           <button className="option-card" onClick={()=>void dispatch({type:'skipIagugu'})}>Passar sem roubar</button>
         </div>
       </Shell>;

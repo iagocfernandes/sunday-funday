@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { IAGUGU_GOLDEN_PRICE, ITEMS } from '../src/data/config';
 import { createLegacyMap, createV4Map } from '../src/data/map';
 import { cardsOfCategory } from '../src/data/cards';
 import type { Command } from '../src/game/types';
@@ -339,7 +340,7 @@ describe('decisões do celular no mapa V3', () => {
     await expect(f.service.command(code, f.tokenOf(other), f.id(), command)).rejects.toThrow('não pertence');
     const id = f.id();
     const replies = await Promise.all([f.service.command(code, f.tokenOf(pid), id, command), f.service.command(code, f.tokenOf(pid), id, command)]);
-    for (const reply of replies) { expect(f.game(reply).players[pid].common).toBe(25); expect(f.game(reply).players[pid].inventory).toHaveLength(1); }
+    for (const reply of replies) { expect(f.game(reply).players[pid].common).toBe(30 - ITEMS.bananaTurbo.price); expect(f.game(reply).players[pid].inventory).toHaveLength(1); }
     expect(f.game(replies[0]).movement?.remaining).toBe(1);
     f.tick(1000); const moved = f.game(await f.read()); expect(moved.players[pid].nodeId).toBe('m3');
   });
@@ -390,6 +391,6 @@ describe('v4: permissões de duelo e Iagugu',()=>{
     await expect(f.service.command(code,f.tokenOf(other),f.id(),cmd)).rejects.toThrow('não pertence');
     const res=await Promise.allSettled([f.service.command(code,f.tokenOf(owner),f.id(),cmd),f.service.command(code,f.tokenOf(owner),f.id(),cmd)]);
     expect(res.filter(r=>r.status==='fulfilled')).toHaveLength(1);
-    const after=f.game(await f.read());expect(after.players[owner].common).toBe(10);expect(after.players[owner].golden).toBe(1);expect(after.players[other].golden).toBe(0);
+    const after=f.game(await f.read());expect(after.players[owner].common).toBe(50-IAGUGU_GOLDEN_PRICE);expect(after.players[owner].golden).toBe(1);expect(after.players[other].golden).toBe(0);
   });
 });
