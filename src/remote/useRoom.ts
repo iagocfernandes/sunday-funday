@@ -33,10 +33,11 @@ export function useRoom(session: RemoteSession | null) {
       finally { checking = false; }
     };
     const connect = () => {
-      if (disposed) return;
-      ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/socket`);
-      ws.onopen = () => { ws?.send(JSON.stringify({ room: session.code, token: session.token })); };
-      ws.onmessage = event => {
+      if (disposed || document.hidden || ws?.readyState === WebSocket.CONNECTING || ws?.readyState === WebSocket.OPEN) return;
+      const current = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/socket`);
+      ws = current;
+      current.onopen = () => { current.send(JSON.stringify({ room: session.code, token: session.token })); };
+      current.onmessage = event => {
         if (disposed) return;
         try {
           const value = JSON.parse(event.data);
@@ -45,20 +46,30 @@ export function useRoom(session: RemoteSession | null) {
           if (value.type === 'state') accept(value);
         } catch { /* HTTP refresh will recover a malformed update. */ }
       };
-      ws.onclose = () => {
+      current.onclose = () => {
+        if (ws !== current) return;
+        ws = null;
         live = false;
-        if (!disposed) { setConnection('connecting'); void refresh(); retry = setTimeout(connect, delay); delay = Math.min(delay * 2, 15000); }
+        if (!disposed && !document.hidden) { setConnection('connecting'); void refresh(); retry = setTimeout(connect, delay); delay = Math.min(delay * 2, 15000); }
       };
-      ws.onerror = () => ws?.close();
+      current.onerror = () => current.close();
     };
-    void refresh(); connect();
+    if (!document.hidden) { void refresh(); connect(); }
     const tick = setInterval(() => {
+      if (document.hidden) return;
       if (live && Date.now() - lastMessage > 8000) { live = false; ws?.close(); }
       if (!live) void refresh();
     }, 2000);
-    const onReturn = () => { if (!document.hidden) void refresh(); };
-    window.addEventListener('online', onReturn); document.addEventListener('visibilitychange', onReturn);
-    return () => { disposed = true; clearTimeout(retry); clearInterval(tick); ws?.close(); window.removeEventListener('online', onReturn); document.removeEventListener('visibilitychange', onReturn); };
+    const resume = () => {
+      if (document.hidden) return;
+      setConnection('connecting'); void refresh(); connect();
+    };
+    const onVisibilityChange = () => {
+      if (!document.hidden) { resume(); return; }
+      clearTimeout(retry); retry = undefined; live = false; ws?.close(); ws = null;
+    };
+    window.addEventListener('online', resume); document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => { disposed = true; clearTimeout(retry); clearInterval(tick); ws?.close(); window.removeEventListener('online', resume); document.removeEventListener('visibilitychange', onVisibilityChange); };
   }, [session, accept]);
   const act = useCallback(async (command: RemoteCommand): Promise<boolean> => {
     if (!session || acting.current) return false;

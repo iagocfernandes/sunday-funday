@@ -1,7 +1,7 @@
 import { validPortrait } from './portrait.js';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import type { RemoteCommand, RoomMode, RoomReply, RoomView } from '../src/remote/types';
-import { activeId, advanceBoard, applyToBoard, boardView, finishBoardPresentation, pauseBoard, resumeBoard, startBoard, validGameCommand, type BoardState } from './board.js';
+import { activeId, advanceBoard, applyToBoard, boardView, finishBoardPresentation, pauseBoard, replayBoardTutorial, resumeBoard, startBoard, updateBoardTutorial, validGameCommand, type BoardState } from './board.js';
 
 export class RoomError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -109,7 +109,7 @@ export class RoomService {
   async command(code: string, token: string, id: string, command: RemoteCommand): Promise<RoomReply> {
     validCode(code); validToken(token);
     if (typeof id !== 'string' || !/^[a-zA-Z0-9-]{12,80}$/.test(id)) throw new RoomError(400, 'Identificador de ação inválido.');
-    if (!command || typeof command !== 'object' || !['join', 'start', 'roll', 'restart', 'pause', 'resume', 'finishPresentation', 'game'].includes(command.type)) throw new RoomError(400, 'Ação inválida.');
+    if (!command || typeof command !== 'object' || !['join', 'start', 'roll', 'restart', 'pause', 'resume', 'finishPresentation', 'tutorial', 'game'].includes(command.type)) throw new RoomError(400, 'Ação inválida.');
     const actor = hashToken(token);
     for (let retry = 0; retry < 12; retry++) {
       const previous = await this.store.get(code);
@@ -182,6 +182,14 @@ export class RoomService {
       finishBoardPresentation(board, command.presentationId, now);
       syncBoard(room); return;
     }
+    if (command.type === 'tutorial') {
+      if (identity.role !== 'host') throw new RoomError(403, 'Somente o anfitrião controla o tutorial.');
+      if (!['next', 'back', 'skip', 'replay'].includes(command.action)) throw new RoomError(400, 'Ação de tutorial inválida.');
+      if (board.presentation) throw new RoomError(409, 'Aguarde a apresentação terminar na TV.');
+      if (command.action === 'replay') replayBoardTutorial(board, now);
+      else updateBoardTutorial(board, command.action, now);
+      syncBoard(room); return;
+    }
     if (room.phase !== 'playing') throw new RoomError(409, 'A partida não está em andamento.');
     if (command.type === 'pause' || command.type === 'resume') {
       if (identity.role !== 'host') throw new RoomError(403, 'Somente o anfitrião pode pausar.');
@@ -191,6 +199,7 @@ export class RoomService {
     }
     if (board.paused) throw new RoomError(409, 'Jogo pausado pelo anfitrião.');
     if (board.presentation) throw new RoomError(409, 'Aguarde a apresentação terminar na TV.');
+    if (board.tutorial?.pending) throw new RoomError(409, 'Aguarde o tutorial terminar na TV.');
     if (command.type === 'roll') {
       if (!Number.isInteger(command.turn) || command.turn !== board.turn) throw new RoomError(409, 'Essa vez já passou. A tela será atualizada.');
       if (identity.role !== 'host' && identity.playerId !== activeId(board.game)) throw new RoomError(403, 'Aguarde: agora é a vez de outro jogador.');

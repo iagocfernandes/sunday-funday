@@ -25,13 +25,22 @@
 }
 
 .miguel-host__sprite,
-.miguel-host__fallback {
+.miguel-host__fallback,
+.miguel-host__video {
   position: absolute;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
 }
+
+.miguel-host__video {
+  z-index: 1;
+  object-fit: cover;
+  opacity: 0;
+}
+
+.miguel-host__video--ready { opacity: 1; }
 
 .miguel-host__sprite {
   background-image: url('/assets/host/miguel-expressions.png');

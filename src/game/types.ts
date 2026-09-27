@@ -87,6 +87,13 @@ export interface MinigameDef {
   format: 'individual' | 'teams';
   description: string;
   icon: string;
+  /** Regras modernas usam seleção direta de vencedores, sem classificação. */
+  resultMode?: 'duo' | 'group' | 'single';
+  winnerCoins?: number;
+  otherCoins?: number;
+  excludedCoins?: number;
+  winnerGolden?: number;
+  maxParticipants?: number;
 }
 
 export interface RewardTable {
@@ -110,6 +117,8 @@ export interface GameConfig {
   shopItems: ItemId[];
   minigameOrder: string[];
   cardMode: 'physical' | 'digital';
+  /** Ausente em partidas salvas antigas: mantém a premiação histórica. */
+  minigameRulesVersion?: 2;
 }
 
 export interface PlayerItem {
@@ -209,6 +218,8 @@ export interface MinigameRoundState {
   applied: boolean;
   /** ID da submissão aplicada, para rejeitar confirmação duplicada. */
   appliedResultId?: string;
+  /** Sorteio persistido de quem não participa desta prova. */
+  excludedPlayerIds?: string[];
 }
 
 export interface MinigameResultRecord {
@@ -217,6 +228,8 @@ export interface MinigameResultRecord {
   format: 'individual' | 'teams';
   /** playerId -> bananas ganhas */
   awards: Record<string, number>;
+  /** playerId -> bananas douradas ganhas (presente quando a prova concede douradas). */
+  goldenAwards?: Record<string, number>;
   /** Ordem/posições informadas pelo anfitrião. */
   detail: string;
 }
@@ -314,6 +327,8 @@ export type Command =
       ranking?: string[][];
       /** teams: índice da equipe vencedora, ou -1 para empate */
       winningTeam?: number;
+      /** Regras modernas: vencedores escolhidos diretamente pelo anfitrião. */
+      winnerIds?: string[];
     }
   | { type: 'nextRound' }
   | { type: 'manualAdjust'; playerId: string; common: number; golden: number; reason: string }

@@ -90,7 +90,7 @@ function cardText(cardId: string, state: GameState, playerId: string) {
     case 'MA04': return { mood: 'mischievous' as const, text: `Chef ${name}, a ilha pediu o ponto da carne.` };
     case 'MA05': return { mood: 'mischievous' as const, text: 'Bill e Maya estão esperando a escolta VIP.' };
     case 'MA07': return { mood: 'mischievous' as const, text: 'A banana foi de arrasta. Eu não vi nada.' };
-    case 'MA01': return { mood: 'mischievous' as const, text: `${name} encarou o shot de bananinha. Coragem questionável.` };
+    case 'MA01': return { mood: 'mischievous' as const, text: `${name}: shot de bananinha na mesa. Coragem questionável.` };
     case 'MA06': return { mood: 'mischievous' as const, text: `${name} entrou para a Bunda da Fama. A câmera não esquece.` };
     case 'A01': return { mood: 'mischievous' as const, text: `${name} pisou na casca. A gravidade fez seu trabalho.` };
     case 'A02': return { mood: 'mischievous' as const, text: `${name} voltou três casas. O GPS pediu desculpas.` };
@@ -190,12 +190,62 @@ export function messageForMiguelEvent(event: DomainEvent, state: GameState, even
 
 export function messageForMiguelPending(state: GameState): MiguelHostMessage | null {
   const pending = state.pending;
-  if (!pending || (pending.kind !== 'duelBet' && pending.kind !== 'duelResult')) return null;
-  const actor = playerName(state, pending.playerId);
-  const opponent = playerName(state, pending.opponentId);
-  return pending.kind === 'duelBet'
-    ? { key: `pending-duel-bet-${pending.playerId}-${pending.opponentId}`, mood: 'mischievous', text: `Duelo à vista: ${actor} contra ${opponent}. Sem drama, só bananas.` }
-    : { key: `pending-duel-result-${pending.playerId}-${pending.opponentId}`, mood: 'mischievous', text: `Duelo aguardando resultado: ${actor} contra ${opponent}. Quem levou as bananas?` };
+  if (!pending) return null;
+  const playerId = 'playerId' in pending ? pending.playerId : null;
+  const actor = playerId ? playerName(state, playerId) : 'alguém';
+  const player = playerId ? state.players[playerId] : undefined;
+
+  switch (pending.kind) {
+    case 'path':
+      return {
+        key: `pending-path-${pending.playerId}-${pending.options.join(',')}`,
+        mood: 'neutral',
+        text: `${actor}, escolha entre ${pending.options.length} caminho${pending.options.length === 1 ? '' : 's'} destacado${pending.options.length === 1 ? '' : 's'}. O mapa é dos gorilas; a decisão é sua.`,
+      };
+    case 'shop':
+      return {
+        key: `pending-shop-${pending.playerId}-${pending.nodeId}-${pending.items.join(',')}`,
+        mood: 'mischievous',
+        text: `${actor}, loja aberta: ${player?.common ?? 0} moedas e ${player?.inventory.length ?? 0}/${state.config.inventoryLimit} poderes. Escolhe um truque ou segue o baile.`,
+      };
+    case 'pedestal':
+      return {
+        key: `pending-pedestal-${pending.playerId}-${pending.nodeId}-${pending.price}`,
+        mood: 'happy',
+        text: `${actor}, a banana dourada está na árvore do Fábio por ${pending.price} moedas. Seu saldo: ${player?.common ?? 0}. Colhe ou guarda?`,
+      };
+    case 'iagugu':
+      return {
+        key: `pending-iagugu-${pending.playerId}-${pending.nodeId}`,
+        mood: 'mischievous',
+        text: `${actor}, o Iagugu apareceu. Escolha uma vítima, roube moedas ou uma banana, ou passe — macaquito nenhum decide por você.`,
+      };
+    case 'duelBet': {
+      const opponent = playerName(state, pending.opponentId);
+      return {
+        key: `pending-duel-bet-${pending.playerId}-${pending.opponentId}-${pending.maxBet}`,
+        mood: 'mischievous',
+        text: `Duelo: ${actor} contra ${opponent}. ${actor}, escolha uma aposta de até ${pending.maxBet} moedas.`,
+      };
+    }
+    case 'duelResult': {
+      const opponent = playerName(state, pending.opponentId);
+      const stake = pending.allIn ? 'Tudo ou nada: todas as moedas do perdedor' : `Valendo ${pending.bet} moedas`;
+      return {
+        key: `pending-duel-result-${pending.playerId}-${pending.opponentId}-${pending.bet}-${Boolean(pending.allIn)}`,
+        mood: 'mischievous',
+        text: `${stake}. Quando a prova terminar, anfitrião registra: ${actor} ou ${opponent}.`,
+      };
+    }
+    case 'itemChoice':
+      return {
+        key: `pending-item-choice-${pending.playerId}`,
+        mood: 'neutral',
+        text: `${actor}, escolha um poder ou siga para o dado. Você está com ${player?.inventory.length ?? 0}/${state.config.inventoryLimit} poderes.`,
+      };
+    default:
+      return null;
+  }
 }
 
 function initialMessage(matchId: string): MiguelHostMessage {

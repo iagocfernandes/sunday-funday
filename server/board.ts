@@ -3,7 +3,8 @@ import { CARD_REVEAL_MS } from '../src/data/cards.js';
 import { DEFAULT_CONFIG, DEFAULT_COLORS, DEFAULT_SYMBOLS, PORTRAITS } from '../src/data/config.js';
 import type { Command, DomainEvent, GameState } from '../src/game/types';
 import { selectHostAudioCue } from '../src/presentation/hostAudioCues.js';
-import type { BoardPresentation, BoardView, PublicGame, RemoteEvent, RemotePlayer } from '../src/remote/types';
+import { BOARD_TUTORIAL_CARD_COUNT } from '../src/remote/types.js';
+import type { BoardPresentation, BoardTutorial, BoardView, PublicGame, RemoteEvent, RemotePlayer } from '../src/remote/types';
 
 /** Parte privada da sala no modo tabuleiro. O motor é o mesmo do jogo local. */
 export interface BoardState {
@@ -16,6 +17,11 @@ export interface BoardState {
   presentation?: BoardPresentation | null;
   /** Prazo de item congelado enquanto a apresentação está ativa; nunca é público. */
   presentationItemMs?: number | null;
+  /** Tutorial só existe em partidas novas; saves antigos ausentes não são migrados. */
+  tutorial?: BoardTutorial;
+  /** Relógios congelados durante tutorial/replay; nunca são públicos. */
+  tutorialItemMs?: number | null;
+  tutorialAutoMs?: number | null;
   /** Próximo passo automático permitido (relógio do servidor). */
   nextAutoAt: number | null;
   events: RemoteEvent[];
@@ -39,7 +45,7 @@ const MAX_CATCH_UP_MS = 3000;
 export const PRESENTATION_GRACE_MS = 3000;
 
 const str = (v: unknown, max = 80) => typeof v === 'string' && v.length > 0 && v.length <= max;
-const idList = (v: unknown) => Array.isArray(v) && v.length <= 10 && v.every(x => str(x));
+const idList = (v: unknown) => Array.isArray(v) && v.length <= 10 && v.every(x => str(x)) && new Set(v).size === v.length;
 
 /** Validação em runtime do payload: o motor recebe apenas formas conhecidas. */
 export function validGameCommand(command: unknown): command is Command {
@@ -62,7 +68,8 @@ export function validGameCommand(command: unknown): command is Command {
     case 'submitResults':
       return str(c.resultId) && (c.format === 'individual' || c.format === 'teams')
         && (c.ranking === undefined || (Array.isArray(c.ranking) && c.ranking.length <= 10 && c.ranking.every(idList)))
-        && (c.winningTeam === undefined || Number.isInteger(c.winningTeam));
+        && (c.winningTeam === undefined || Number.isInteger(c.winningTeam))
+        && (c.winnerIds === undefined || idList(c.winnerIds));
     case 'manualAdjust':
       return str(c.playerId) && Number.isFinite(c.common) && Number.isFinite(c.golden)
         && (c.common as number) >= 0 && (c.golden as number) >= 0 && (c.common as number) < 100000 && (c.golden as number) < 1000
@@ -83,6 +90,8 @@ export function startBoard(players: RemotePlayer[], seed: number, matchId: strin
   const board: BoardState = {
     matchId, game, paused: false, itemDeadline: null, pausedItemMs: null,
     presentation: null, presentationItemMs: null,
+    tutorial: { pending: true, step: 0, completed: false, replay: false },
+    tutorialItemMs: null, tutorialAutoMs: null,
     nextAutoAt: null, events: [], eventSeq: previousSeq, turn: 0,
   };
   openPresentation(board, selectHostAudioCue(null, game, []), at);
@@ -196,7 +205,7 @@ export function applyToBoard(
  */
 export function advanceBoard(board: BoardState, now: number): boolean {
   let changed = expirePresentation(board, now);
-  if (board.paused || board.presentation) return changed;
+  if (board.paused || board.presentation || board.tutorial?.pending) return changed;
   if(board.game.map.stops && board.game.config.cardMode==='digital' && board.game.catalogVersion!==2){
     board.game.catalogVersion=2;board.game.cardDecks={};board.game.config.shopItems=[...DEFAULT_CONFIG.shopItems];
     if(board.game.pending?.kind==='shop')board.game.pending.items=[...DEFAULT_CONFIG.shopItems];
@@ -225,6 +234,40 @@ export function advanceBoard(board: BoardState, now: number): boolean {
   return changed;
 }
 
+/** Abre/reabre o tutorial sem consumir prazos e sem alterar a pausa manual. */
+export function replayBoardTutorial(board: BoardState, now: number) {
+  if (board.tutorial?.pending) return;
+  board.tutorial = { pending: true, step: 0, completed: false, replay: true };
+  if (!board.paused) {
+    board.tutorialItemMs = board.itemDeadline === null ? null : Math.max(0, board.itemDeadline - now);
+    board.tutorialAutoMs = board.nextAutoAt === null ? null : Math.max(0, board.nextAutoAt - now);
+    board.itemDeadline = null;
+    board.nextAutoAt = null;
+  } else {
+    board.tutorialItemMs = null;
+    board.tutorialAutoMs = null;
+  }
+}
+
+export function updateBoardTutorial(board: BoardState, action: 'next' | 'back' | 'skip', now: number) {
+  const tutorial = board.tutorial;
+  if (!tutorial?.pending) return;
+  if (action === 'back') { tutorial.step = Math.max(0, tutorial.step - 1); return; }
+  if (action === 'next' && tutorial.step < BOARD_TUTORIAL_CARD_COUNT - 1) { tutorial.step += 1; return; }
+  tutorial.pending = false;
+  tutorial.completed = true;
+  if (!board.paused) {
+    if (board.game.phase === 'itemWindow' && board.tutorialItemMs !== null && board.tutorialItemMs !== undefined) {
+      board.itemDeadline = now + board.tutorialItemMs;
+    }
+    if (board.tutorialAutoMs !== null && board.tutorialAutoMs !== undefined) board.nextAutoAt = now + board.tutorialAutoMs;
+  } else if (board.game.phase === 'itemWindow' && board.tutorialItemMs !== null && board.tutorialItemMs !== undefined) {
+    board.pausedItemMs = board.tutorialItemMs;
+  }
+  board.tutorialItemMs = null;
+  board.tutorialAutoMs = null;
+}
+
 export function pauseBoard(board: BoardState, now: number) {
   board.paused = true;
   if (!board.presentation) {
@@ -234,6 +277,16 @@ export function pauseBoard(board: BoardState, now: number) {
 }
 export function resumeBoard(board: BoardState, now: number) {
   board.paused = false;
+  if (board.tutorial?.pending) {
+    if (board.game.phase === 'itemWindow' && board.tutorialItemMs == null) {
+      board.tutorialItemMs = board.pausedItemMs ?? board.game.config.itemWindowMs;
+    }
+    board.pausedItemMs = null;
+    if (board.tutorialAutoMs == null && nextBoardCommand(board.game)) {
+      board.tutorialAutoMs = delayAfter(board.game, []);
+    }
+    return;
+  }
   // A janela retoma com o tempo que restava: a pausa não consome prazo.
   if (board.game.phase === 'itemWindow' && !board.presentation) {
     board.itemDeadline = now + (board.pausedItemMs ?? board.game.config.itemWindowMs);
@@ -252,6 +305,7 @@ export function boardView(board: BoardState): BoardView {
     matchId: board.matchId, game, paused: board.paused,
     itemDeadline: board.itemDeadline, pausedItemMs: board.pausedItemMs,
     presentation: board.presentation ?? null,
+    ...(board.tutorial ? { tutorial: { ...board.tutorial } } : {}),
     events: board.events.slice(-30),
   };
 }

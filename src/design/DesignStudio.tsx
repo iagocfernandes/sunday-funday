@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { PowerCard } from '../components/PowerCard';
 import { DEFAULT_CONFIG } from '../data/config';
 import { GameplayPreview } from './GameplayPreview';
+import { HostPreview } from './HostPreview';
+import { RoundPreview } from './RoundPreview';
 import '../styles/app.css';
 import '../remote/remote.css';
 import './studio.css';
@@ -37,7 +39,7 @@ function DirectionView() {
       </section>
 
       <section className="miguel-gallery component-section">
-        <div className="section-heading"><div><span className="eyebrow">MIGUEL · ANFITRIÃO DA ILHA</span><h2>Ele comemora. Ele provoca. Ele sente.</h2></div></div>
+        <div className="section-heading"><div><span className="eyebrow">AR2 · ANFITRIÃO DA ILHA</span><h2>Ele comemora. Ele provoca. Ele sente.</h2></div></div>
         <div className="miguel-moods">{[['0% 0%','Na área'],['100% 0%','Comemorando'],['0% 100%','Aprontando'],['100% 100%','Fique sóbrio…']].map(([position,label])=><article key={label}><div style={{backgroundPosition:position}}/><strong>{label}</strong></article>)}</div>
         <p>Comentários contextuais e voz opcional. Durante Fique Sóbrio, a expressão triste dura até o efeito acabar.</p>
       </section>
@@ -64,7 +66,7 @@ function DirectionView() {
 }
 
 function Studio() {
-  const [selected, setSelected] = useState<'direction' | 'map'>(()=>new URLSearchParams(location.search).get('tab')==='game'?'map':'direction');
+  const [selected, setSelected] = useState<'direction' | 'map' | 'host' | 'rounds'>(()=>{ const tab = new URLSearchParams(location.search).get('tab'); return tab === 'game' ? 'map' : tab === 'host' ? 'host' : tab === 'rounds' ? 'rounds' : 'direction'; });
   return (
     <main className="studio">
       <nav>
@@ -72,9 +74,11 @@ function Studio() {
         <div className="studio-tabs">
           <button className={selected === 'direction' ? 'active' : ''} onClick={() => setSelected('direction')}>Direção aprovada</button>
           <button className={selected === 'map' ? 'active' : ''} onClick={() => setSelected('map')}>Tabuleiro real</button>
+          <button className={selected === 'host' ? 'active' : ''} onClick={() => setSelected('host')}>AR2 em cena</button>
+          <button className={selected === 'rounds' ? 'active' : ''} onClick={() => setSelected('rounds')}>Rodadas e tutorial</button>
         </div>
       </nav>
-      {selected === 'direction' ? <DirectionView /> : <div className="studio-board"><GameplayPreview /></div>}
+      {selected === 'direction' ? <DirectionView /> : selected === 'host' ? <HostPreview /> : selected === 'rounds' ? <RoundPreview /> : <div className="studio-board"><GameplayPreview /></div>}
       <footer>Studio local sem APIs externas. A aba Tabuleiro real usa a prévia GameplayPreview com o motor e os componentes reais.</footer>
     </main>
   );

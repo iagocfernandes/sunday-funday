@@ -23,7 +23,8 @@ function seeds(count: number): PlayerSeed[] {
 }
 
 function game(count = 8, overrides = {}): GameState {
-  return createGame(seeds(count), { rounds: 2, ...overrides }, { seed: 1234, shuffleOrder: false, map: createLegacyMap() });
+  // A suíte histórica cobre o contrato de partidas salvas antes das regras v2.
+  return createGame(seeds(count), { rounds: 2, minigameRulesVersion: undefined, ...overrides }, { seed: 1234, shuffleOrder: false, map: createLegacyMap() });
 }
 
 /** Aplica um comando e falha o teste se for rejeitado. */

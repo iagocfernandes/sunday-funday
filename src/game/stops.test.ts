@@ -34,7 +34,7 @@ describe('V3: serviços entre casas', () => {
     const failed = result(s, { type: 'buyItem', itemId: 'dadoCerteiro', discardUid: 'estranho' });
     expect(failed.rejected).toBeDefined(); expect(failed.state).toBe(s);
     const bought = run(s, { type: 'buyItem', itemId: 'dadoCerteiro', discardUid: 'b' });
-    expect(bought.players.p0.common).toBe(95); expect(bought.players.p0.inventory).toHaveLength(3);
+    expect(bought.players.p0.common).toBe(92); expect(bought.players.p0.inventory).toHaveLength(3);
     expect(bought.players.p0.inventory.some(i => i.uid === 'b')).toBe(false);
     expect(result(bought, { type: 'buyItem', itemId: 'dadoCerteiro', discardUid: 'a' }).rejected).toBeDefined();
     expect(run(bought, { type: 'step' }).players.p0.nodeId).toBe('m3');

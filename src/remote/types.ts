@@ -14,6 +14,15 @@ export interface BoardPresentation {
   expiresAt: number;
   playerIds: string[];
 }
+export const BOARD_TUTORIAL_CARD_COUNT = 4;
+export interface BoardTutorial {
+  /** Enquanto pendente, o servidor bloqueia comandos e progressão automática. */
+  pending: boolean;
+  step: number;
+  completed: boolean;
+  /** Replay foi aberto pelo menu durante uma partida já em andamento. */
+  replay: boolean;
+}
 export interface BoardView {
   /** Identidade da partida: muda a cada início, invalidando ações antigas. */
   matchId: string;
@@ -25,6 +34,8 @@ export interface BoardView {
   pausedItemMs: number | null;
   /** Áudio curto que pausa a progressão; ausente em snapshots de servidores antigos. */
   presentation?: BoardPresentation | null;
+  /** Ausente em partidas antigas: elas nunca abrem o tutorial automaticamente. */
+  tutorial?: BoardTutorial;
   events: RemoteEvent[];
 }
 export interface RoomView {
@@ -43,5 +54,6 @@ export type RemoteCommand =
   | { type: 'pause'; matchId: string }
   | { type: 'resume'; matchId: string }
   | { type: 'finishPresentation'; matchId: string; presentationId: string }
+  | { type: 'tutorial'; matchId: string; action: 'next' | 'back' | 'skip' | 'replay' }
   /** Decisões do responsável ou do anfitrião, atreladas à partida e à revisão do motor. */
   | { type: 'game'; matchId: string; revision: number; command: Command };

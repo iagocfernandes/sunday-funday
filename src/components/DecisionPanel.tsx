@@ -48,11 +48,12 @@ export function DecisionPanel({ state, dispatch, canResolveDuel = true }: Props)
         </div>
       </Shell>;
     }
-    case 'duelBet': return <Shell title={`Duelo: ${name(pending.playerId)} × ${name(pending.opponentId)}`} why="O adversário foi sorteado. Escolha quanto vale a disputa.">
+    case 'duelBet': return <Shell title={`Duelo: ${name(pending.playerId)} × ${name(pending.opponentId)}`} why="Beer Pong individual · 3 copos por lado. O adversário foi sorteado; escolha a aposta.">
       {pending.maxBet>0 ? <><p>O vencedor recebe a aposta do perdedor. Limite: {pending.maxBet} moedas.</p><label>Aposta em moedas<input aria-label="Aposta em moedas" type="number" inputMode="numeric" min="1" max={pending.maxBet} value={bet} onChange={e=>setBet(Number(e.target.value))}/></label></> : <p>Sem saldo dos dois lados para apostar: este duelo será amistoso, sem transferência de moedas.</p>}
       <button className="btn-primary" disabled={pending.maxBet>0 && (!Number.isInteger(bet)||bet<1||bet>pending.maxBet)} onClick={()=>void dispatch({type:'setDuelBet',amount:pending.maxBet>0?bet:0})}>Confirmar e disputar</button>
     </Shell>;
-    case 'duelResult': return <Shell title={`⚔ Duelo: ${name(pending.playerId)} × ${name(pending.opponentId)}`} why={pending.allIn?'TUDO OU NADA: o vencedor recebe todas as moedas do perdedor.':`Valendo ${pending.bet} moedas. Façam uma prova rápida combinada com o anfitrião.`}>
+    case 'duelResult': return <Shell title={`⚔ Duelo: ${name(pending.playerId)} × ${name(pending.opponentId)}`} why={pending.allIn?'TUDO OU NADA: o vencedor recebe todas as moedas do perdedor.':`Beer Pong individual · 3 copos por lado · valendo ${pending.bet} moedas.`}>
+      <p>Alternem os arremessos e retirem os copos acertados. Sorteiem quem começa; os dois têm direito ao mesmo número de tentativas. Se ambos terminarem juntos, disputem um copo extra até desempatar.</p>
       {canResolveDuel ? <><p>Registre o resultado após a prova presencial:</p><div className="options">{[pending.playerId,pending.opponentId].map(id=><button key={id} className="option-card" onClick={()=>void dispatch({type:'resolveDuel',winnerId:id})}>{name(id)} venceu</button>)}<button className="option-card" onClick={()=>void dispatch({type:'resolveDuel',winnerId:null})}>Empate</button></div></> : <p>Aguardando o anfitrião registrar o resultado na TV.</p>}
     </Shell>;
 

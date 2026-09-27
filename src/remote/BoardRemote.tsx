@@ -19,6 +19,7 @@ import { scenesFor, type Scene } from '../presentation/manifest';
 import { useBoardMotion } from '../presentation/useBoardMotion';
 import { useGameAudio } from '../presentation/useGameAudio';
 import type { BoardView, RemoteCommand, RoomReply } from './types';
+import { BoardTutorial } from './BoardTutorial';
 
 import { usePageScroll } from './usePageScroll';
 
@@ -68,7 +69,7 @@ function decisionSummary(state: GameState): {title:string; detail:string} | null
     case 'harvest': return {title:`${actor} conquistou uma banana!`,detail:`A próxima está na ${state.map.stops?.find(s=>s.id===p.nextTreeId)?.name??'nova árvore'}. O caminho continua automaticamente.`};
     case 'iagugu': return {title:`${actor} encontrou o Iagugu`,detail:'Escolha a vítima no celular. Moedas: grátis · Banana dourada: 40 moedas.'};
     case 'duelBet':return {title:`Duelo! ${actor} × ${state.players[p.opponentId].name}`,detail:`${actor} escolhe a aposta no celular: até ${p.maxBet} moedas.`};
-    case 'duelResult':return {title:`${actor} × ${state.players[p.opponentId].name}`,detail:`${p.allIn?'TUDO OU NADA: todas as moedas do perdedor.':`Duelo presencial valendo ${p.bet} moedas.`} O anfitrião registra o resultado.`};
+    case 'duelResult':return {title:`${actor} × ${state.players[p.opponentId].name}`,detail:`${p.allIn?'TUDO OU NADA: todas as moedas do perdedor.':`Beer Pong com 3 copos de cada lado, valendo ${p.bet} moedas.`} O anfitrião registra o resultado.`};
     case 'cardPreview': {const card=CARDS_BY_ID[p.cardId];return {title:`${p.category==='luck'?'Sorte':'Azar'} · ${card?.title??'Evento'}`,detail:`${actor}: ${card?.description??'Confirme no celular.'}`};}
     case 'itemChoice':return {title:`${actor}, vai usar um poder?`,detail:'Escolha no celular ou siga para o dado.'};
     default:return {title:statusText(state,false),detail:`${actor} decide pelo celular.`};
@@ -93,6 +94,7 @@ export function BoardTv({ reply, act, busy, joinUrl }: { reply: RoomReply; act: 
   useEffect(()=>{if(motion.frame?.phase==='land')setLandingKey(current=>current===motion.frame?.key?current:motion.frame?.key)},[motion.frame?.key,motion.frame?.phase]);
   const audio=useGameAudio({board,state,paused:board.paused,stepKey:landingKey,visualSteps:true,ambientMusic:true,ducked:narrating});
   const presentation=board.presentation;
+  const tutorial=board.tutorial?.pending?board.tutorial:null;
   const clip=presentation?HOST_AUDIO_CLIPS[presentation.clip as HostAudioClip]:null;
   const voice=useRecordedHostAudio(presentation&&clip?{id:presentation.id,src:clip.src,durationMs:presentation.durationMs}:null,{
     enabled:voiceEnabled,paused:board.paused,muted:audio.muted,
@@ -111,12 +113,13 @@ export function BoardTv({ reply, act, busy, joinUrl }: { reply: RoomReply; act: 
   const title=board.paused?'Partida pausada':summary?.title??(state.phase==='readyToRoll'?`${player?.name}, é sua vez!`:statusText(state,false));
   const detail=board.paused?'O anfitrião pode retomar quando todos estiverem prontos.':summary?.detail??(state.phase==='readyToRoll'?'Jogue o dado no celular.':state.phase==='moving'?`${state.movement?.remaining??0} passos restantes`:'Acompanhe a partida no mapa.');
   return <div className="tv-stage">
-    <MiguelHostView reaction={miguel} enabled={hostEnabled&&!drawer&&!hostDecision&&!presentation} className={reveal?'miguel-during-card':undefined}/>
+    <MiguelHostView reaction={miguel} enabled={hostEnabled&&!drawer&&!hostDecision&&!presentation&&!tutorial} paused={board.paused} videoScope={board.matchId} className={reveal?'miguel-during-card':undefined}/>
     <div className={`tv-map ${camera?'tv-camera':''}`} style={camera&&motion.focus?{transform:`scale(1.04) translate(${(0.5-motion.focus.x)*3}%, ${(0.5-motion.focus.y)*3}%)`}:undefined}><Board state={motion.state} living={living} paused={board.paused} highlightNodes={pathOptions} onNodeClick={hostDecision?nodeId=>void dispatch({type:'choosePath',nodeId}):undefined}/></div>
     <header className="tv-hud-top">
       <div className="tv-active"><PlayerPortrait src={player?.portrait} className="tv-active-portrait"/><div><small>VEZ DE</small><strong>{player?.name??'—'}</strong><span><GameIcon kind="banana"/> {player?.golden??0} <i>·</i> <GameIcon kind="coin"/> {player?.common??0}</span></div><div className="tv-die" aria-label={`Dado: ${state.dice??'aguardando'}`}>{state.dice??'?'}</div></div>
       <div className="tv-top-actions"><div className="tv-round"><small>RODADA</small><strong>{state.round}<span> / {state.config.rounds}</span></strong></div><button aria-label={board.paused?'Retomar partida':'Pausar partida'} disabled={busy||state.phase==='finished'} onClick={()=>void act({type:board.paused?'resume':'pause',matchId:board.matchId})}>{board.paused?'▶ Retomar':'Ⅱ Pausar'}</button><button onClick={()=>setDrawer(true)} aria-label="Abrir menu da partida">☰ Menu</button></div>
     </header>
+    {tutorial&&!presentation&&<BoardTutorial state={state} tutorial={tutorial} matchId={board.matchId} busy={busy} act={act}/>}
     {card&&reveal&&<div className={`tv-card-reveal ${card.category}`} role="status" aria-live="polite"><article key={`${state.revision}-${card.id}`} className="tv-reveal-card"><span className="tv-card-category"><GameIcon kind={card.category}/>{card.category==='luck'?' SORTE':' AZAR'}{card.weight===1?' · SUPER RARA':''}</span><div className="tv-card-person"><PlayerPortrait src={state.players[reveal.playerId].portrait}/><span>{state.players[reveal.playerId].name}</span></div><h1>{card.title}</h1><p>{card.description}</p><small>{card.targetRule==='otherPlayer'?'Em seguida, escolha um jogador no celular':'O efeito será aplicado automaticamente'}</small><div className="tv-card-progress" style={{animationPlayState:board.paused||!!presentation?'paused':'running'}}/></article></div>}
     {scene&&!reveal&&!drawer&&!presentation&&<div className={scene.level==='small'?'tv-event':'tv-event-splash'} role="status">{scene.playerId&&scene.level!=='small'&&<PlayerPortrait src={state.players[scene.playerId]?.portrait} className="tv-scene-portrait"/>}<strong>{scene.title}</strong>{scene.subtitle&&<span>{scene.subtitle}</span>}</div>}
     <div className="tv-bottom-hud">
@@ -133,12 +136,13 @@ export function BoardTv({ reply, act, busy, joinUrl }: { reply: RoomReply; act: 
       {state.phase==='itemWindow'&&<button disabled={busy||board.paused||!!presentation} onClick={()=>void dispatch({type:'requestItemChoice'})}>Escolher poder pelo anfitrião</button>}
       {state.phase==='roundReady'&&<button disabled={busy||board.paused||!!presentation} onClick={()=>void dispatch({type:'startRound'})}>Iniciar rodada</button>}
       {state.notice&&<p>{state.notice}</p>}<HistoryPanel state={state}/></aside></div>}
+    {drawer&&<button className="tv-tutorial-replay-menu" disabled={busy} onClick={()=>{setDrawer(false);void act({type:'tutorial',matchId:board.matchId,action:'replay'});}}>▶ Rever tutorial</button>}
     {!presentation&&(state.phase==='minigameIntro'||state.phase==='awaitingResults')&&<MinigamePanel state={state} dispatch={adminDispatch}/>}
     {state.phase==='roundEnd'&&<div className="tv-round-summary"><h2>Rodada {state.round} concluída</h2><p>Confira o placar. A próxima etapa começa automaticamente.</p></div>}
     {!presentation&&state.phase==='finished'&&<div className="tv-modal-shade"><section className="tv-dialog"><h1>🏆 {sorted[0]?.name}</h1><p>Partida encerrada</p><Standings state={state}/><button disabled={busy} onClick={()=>void act({type:'restart'})}>Nova partida com os mesmos jogadores</button></section></div>}
     {presentation&&clip&&!drawer&&<section className="ar2-announcement" role="dialog" aria-modal="true" aria-label="AR2 anuncia" key={presentation.id}>
       <div className="ar2-announcement-card">
-        <MiguelHostView enabled reaction={{messageId:presentation.id,text:null,visible:false,mood:clip.mood,dismiss:voice.skip}} className="ar2-announcement-host"/>
+        <MiguelHostView enabled paused={board.paused} videoScope={board.matchId} announcement videoClip={presentation.clip} reaction={{messageId:presentation.id,text:null,visible:false,mood:clip.mood,dismiss:voice.skip}} className="ar2-announcement-host"/>
         <small>AR2 NO COMANDO</small><h1>{clip.text}</h1>
         <div className="ar2-announcement-players">{presentation.playerIds.map(id=>state.players[id]&&<div key={id}><PlayerPortrait src={state.players[id].portrait}/><strong>{state.players[id].name}</strong></div>)}</div>
         <p>{board.paused?'Partida pausada':voice.speaking?'Acompanhe a fala. O jogo continua automaticamente.':'Retomando a partida…'}</p>
@@ -160,6 +164,7 @@ function phoneStatus(state: GameState, board: BoardView, me: string | null): { t
   const mine = active?.id === me;
   const p = state.pending;
   if (board.presentation) return {title:'AR2 está falando',detail:'Acompanhe a TV. Seus controles voltam automaticamente ao final da fala.'};
+  if (board.tutorial?.pending) return {title:'Tutorial na TV',detail:'Acompanhe as quatro telas. Seus controles liberam quando o anfitrião terminar.'};
   if (state.phase === 'finished') return { title: 'Partida encerrada', detail: 'Veja o resultado final na TV.' };
   if (board.paused) return { title: 'Jogo pausado', detail: 'O anfitrião pausou a partida. Aguarde.' };
   if (state.phase === 'roundReady') return { title: `Rodada ${state.round}`, detail: state.map.stops ? 'A rodada começa automaticamente. Acompanhe a TV.' : 'Aguardando o anfitrião iniciar a rodada na TV.' };
@@ -182,12 +187,12 @@ export function BoardPhone({ reply, act, busy, online }: { reply: RoomReply; act
   const me = reply.playerId ? state.players[reply.playerId] : null;
   const active = activePlayer(state);
   const myTurn = !!me && active?.id === me.id;
-  const canRoll = myTurn && state.phase === 'readyToRoll' && !state.pending && !board.paused && !board.presentation && !busy && online;
+  const canRoll = myTurn && state.phase === 'readyToRoll' && !state.pending && !board.paused && !board.presentation && !board.tutorial?.pending && !busy && online;
   const status = phoneStatus(state, board, me?.id ?? null);
   const place = me ? ranking(state).findIndex(p => p.id === me.id) + 1 : 0;
   const showDice = state.dice !== null;
   const pending = state.pending;
-  const ownsDecision = !board.presentation && !!pending && !['cardPreview','harvest'].includes(pending.kind) && (pending.kind === 'defense' ? pending.targetId : pending.playerId) === me?.id;
+  const ownsDecision = !board.presentation && !board.tutorial?.pending && !!pending && !['cardPreview','harvest'].includes(pending.kind) && (pending.kind === 'defense' ? pending.targetId : pending.playerId) === me?.id;
   const dispatch = (command: Command) => act({ type: 'game', matchId: board.matchId, revision: state.revision, command });
   return <div className="remote-play-layout">
     <section className={`remote-stage ${myTurn ? 'is-my-turn' : ''}`}>

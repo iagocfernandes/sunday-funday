@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createLegacyMap, createV4Map } from '../src/data/map';
 import { cardsOfCategory } from '../src/data/cards';
+import { ITEMS } from '../src/data/config';
 import type { Command } from '../src/game/types';
 import type { RoomReply } from '../src/remote/types';
-import { MAX_STEPS_PER_REQUEST, PRESENTATION_GRACE_MS } from './board';
+import { MAX_STEPS_PER_REQUEST, PRESENTATION_GRACE_MS, validGameCommand } from './board';
 import { RoomService, type RoomStore, type StoredRoom } from './room';
 
 class MemoryStore implements RoomStore {
@@ -26,11 +27,16 @@ async function boardRoom(seed = 12345, finishOpening = true) {
   const b = await service.command(code, p2, id(), { type: 'join', name: 'Emiliano' });
   const started = await service.command(code, host, id(), { type: 'start' });
   const opening = started.room.board!.presentation;
-  const ready = finishOpening && opening
+  const afterOpening = finishOpening && opening
     ? await service.command(code, host, id(), {
       type: 'finishPresentation', matchId: started.room.board!.matchId, presentationId: opening.id,
     })
     : started;
+  const ready = finishOpening && afterOpening.room.board?.tutorial?.pending
+    ? await service.command(code, host, id(), {
+      type: 'tutorial', matchId: afterOpening.room.board.matchId, action: 'skip',
+    })
+    : afterOpening;
   const begun = finishOpening ? await service.read(code, host) : ready;
   const tokenOf = (playerId: string | null) => playerId === a.playerId ? p1 : p2;
   const f = {
@@ -118,7 +124,8 @@ describe('remote board: engine authority on the server', () => {
     automatic.tick(automatic.opening!.expiresAt - automatic.now());
     const reply = await automatic.read();
     expect(reply.room.board!.presentation).toBeNull();
-    expect(automatic.game(reply).revision).toBe(initialRevision + 1);
+    expect(reply.room.board!.tutorial).toMatchObject({ pending: true, step: 0 });
+    expect(automatic.game(reply).revision).toBe(initialRevision);
 
     const manual = await boardRoom(54321, false);
     const matchId = manual.started.room.board!.matchId;
@@ -298,9 +305,11 @@ describe('remote board: engine authority on the server', () => {
       expect(reply.room.board!.events.filter(e => e.event.type === 'turnStarted').length).toBeGreaterThanOrEqual(2);
       reply = await f.host(reply, { type: 'startMinigame' });
       const g = f.game(reply);
-      const submit: Command = g.minigame!.teams.length
-        ? { type: 'submitResults', resultId: 'r1', format: 'teams', winningTeam: 0 }
-        : { type: 'submitResults', resultId: 'r1', format: 'individual', ranking: [[g.order[0]], [g.order[1]]] };
+      const submit: Command = g.config.minigameRulesVersion === 2
+        ? { type: 'submitResults', resultId: 'r1', format: g.minigame!.teams.length ? 'teams' : 'individual', winnerIds: g.order.slice(0, 2) }
+        : g.minigame!.teams.length
+          ? { type: 'submitResults', resultId: 'r1', format: 'teams', winningTeam: 0 }
+          : { type: 'submitResults', resultId: 'r1', format: 'individual', ranking: [[g.order[0]], [g.order[1]]] };
       const totalBefore = Object.values(g.players).reduce((s, p) => s + p.common, 0);
       reply = await f.host(reply, submit);
       const totalAfter = Object.values(f.game(reply).players).reduce((s, p) => s + p.common, 0);
@@ -326,6 +335,77 @@ describe('remote board: engine authority on the server', () => {
   });
 });
 
+describe('tutorial autoritativo da TV', () => {
+  it('aceita winnerIds únicos e limita o payload moderno a dez jogadores', () => {
+    expect(validGameCommand({ type: 'submitResults', resultId: 'result-1', format: 'individual', winnerIds: ['a', 'b'] })).toBe(true);
+    expect(validGameCommand({ type: 'submitResults', resultId: 'result-1', format: 'individual', winnerIds: ['a', 'a'] })).toBe(false);
+    expect(validGameCommand({ type: 'submitResults', resultId: 'result-1', format: 'individual', winnerIds: Array.from({ length: 11 }, (_, i) => `p${i}`) })).toBe(false);
+  });
+
+  it('respeita abertura → tutorial → primeira vez, persiste passos e só aceita o anfitrião', async () => {
+    const f = await boardRoom(91, false);
+    const board = f.started.room.board!;
+    const active = board.game.order[board.game.activeIndex];
+    const playerToken = f.tokenOf(active);
+    expect(board.presentation?.clip).toBe('opening');
+    expect(board.tutorial).toMatchObject({ pending: true, step: 0, completed: false });
+
+    await expect(f.service.command(code, playerToken, f.id(), { type: 'roll', turn: f.started.room.turn, matchId: board.matchId })).rejects.toThrow('apresentação');
+    const afterOpening = await f.service.command(code, host, f.id(), { type: 'finishPresentation', matchId: board.matchId, presentationId: board.presentation!.id });
+    expect(afterOpening.room.board!.presentation).toBeNull();
+    expect(afterOpening.room.board!.tutorial?.pending).toBe(true);
+    await expect(f.service.command(code, playerToken, f.id(), { type: 'roll', turn: f.started.room.turn, matchId: board.matchId })).rejects.toThrow('tutorial');
+    await expect(f.service.command(code, playerToken, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'next' })).rejects.toThrow('anfitrião');
+
+    await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'next' });
+    expect((await f.service.read(code, playerToken)).room.board!.tutorial?.step).toBe(1);
+    await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'back' });
+    const skipped = await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'skip' });
+    expect(skipped.room.board!.tutorial).toMatchObject({ pending: false, completed: true, step: 0 });
+  });
+
+  it('não injeta tutorial automático em save antigo sem esse campo', async () => {
+    const f = await boardRoom(92, false);
+    const board = f.started.room.board!;
+    await f.service.command(code, host, f.id(), { type: 'finishPresentation', matchId: board.matchId, presentationId: board.presentation!.id });
+    delete f.stored().board!.tutorial;
+    const revision = f.stored().board!.game.revision;
+    const reconnected = await f.read();
+    expect(reconnected.room.board!.tutorial).toBeUndefined();
+    expect(f.game(reconnected).revision).toBeGreaterThan(revision);
+  });
+
+  it('replay congela e restaura prazos sem mudar a pausa manual', async () => {
+    const f = await boardRoom(93);
+    const board = f.stored().board!;
+    board.game.phase = 'itemWindow'; board.game.pending = null;
+    board.itemDeadline = f.now() + 4_000; board.nextAutoAt = f.now() + 2_500;
+    const opened = await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'replay' });
+    expect(opened.room.board).toMatchObject({ paused: false, itemDeadline: null, tutorial: { pending: true, replay: true } });
+    f.tick(1_000);
+    const held = await f.read();
+    expect(held.room.board!.itemDeadline).toBeNull();
+    const closed = await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'skip' });
+    expect(closed.room.board!.itemDeadline).toBe(f.now() + 4_000);
+
+    await f.service.command(code, host, f.id(), { type: 'pause', matchId: board.matchId });
+    const pausedMs = f.stored().board!.pausedItemMs;
+    await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'replay' });
+    const stillPaused = await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'skip' });
+    expect(stillPaused.room.board!.paused).toBe(true);
+    expect(stillPaused.room.board!.pausedItemMs).toBe(pausedMs);
+    const resumed = await f.service.command(code, host, f.id(), { type: 'resume', matchId: board.matchId });
+    expect(resumed.room.board!.itemDeadline).toBe(f.now() + pausedMs!);
+
+    await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'replay' });
+    await f.service.command(code, host, f.id(), { type: 'pause', matchId: board.matchId });
+    const skippedWhilePaused = await f.service.command(code, host, f.id(), { type: 'tutorial', matchId: board.matchId, action: 'skip' });
+    expect(skippedWhilePaused.room.board!.pausedItemMs).toBe(pausedMs);
+    const resumedAgain = await f.service.command(code, host, f.id(), { type: 'resume', matchId: board.matchId });
+    expect(resumedAgain.room.board!.itemDeadline).toBe(f.now() + pausedMs!);
+  });
+});
+
 
 describe('decisões do celular no mapa V3', () => {
   it('autoriza só o dono da visita, persiste compra concorrente uma vez e retoma a travessia', async () => {
@@ -339,7 +419,7 @@ describe('decisões do celular no mapa V3', () => {
     await expect(f.service.command(code, f.tokenOf(other), f.id(), command)).rejects.toThrow('não pertence');
     const id = f.id();
     const replies = await Promise.all([f.service.command(code, f.tokenOf(pid), id, command), f.service.command(code, f.tokenOf(pid), id, command)]);
-    for (const reply of replies) { expect(f.game(reply).players[pid].common).toBe(25); expect(f.game(reply).players[pid].inventory).toHaveLength(1); }
+    for (const reply of replies) { expect(f.game(reply).players[pid].common).toBe(30 - ITEMS.bananaTurbo.price); expect(f.game(reply).players[pid].inventory).toHaveLength(1); }
     expect(f.game(replies[0]).movement?.remaining).toBe(1);
     f.tick(1000); const moved = f.game(await f.read()); expect(moved.players[pid].nodeId).toBe('m3');
   });

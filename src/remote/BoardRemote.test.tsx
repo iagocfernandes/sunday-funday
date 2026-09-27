@@ -3,6 +3,7 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createGame } from '../game/engine';
 import { BoardPhone, BoardTv } from './BoardRemote';
+import { BoardTutorial } from './BoardTutorial';
 import type { RoomReply } from './types';
 
 afterEach(cleanup);
@@ -26,6 +27,25 @@ describe('celular durante fala gravada',()=>{
   expect(screen.getByText('AR2 está falando')).toBeTruthy();
   expect(screen.queryByText('Dado Duplo')).toBeNull();
  });
+ it('continua bloqueado no tutorial após a abertura terminar',()=>{
+  const reply=fixture();reply.room.board!.presentation=null;reply.room.board!.tutorial={pending:true,step:0,completed:false,replay:false};
+  render(<BoardPhone reply={reply} act={vi.fn()} busy={false} online/>);
+  expect(screen.getByText('Tutorial na TV')).toBeTruthy();
+  expect((screen.getByRole('button',{name:'Aguarde'}) as HTMLButtonElement).disabled).toBe(true);
+ });
+});
+
+describe('tutorial curto da TV',()=>{
+ it('mostra quatro passos com valores da configuração e envia avançar',()=>{
+  const reply=fixture();const state={...reply.room.board!.game,rngSeed:0,rngCursor:0};
+  const act=vi.fn().mockResolvedValue(true);
+  render(<BoardTutorial state={state} tutorial={{pending:true,step:0,completed:false,replay:false}} matchId="m" busy={false} act={act}/>);
+  expect(screen.getByLabelText('Passo 1 de 4')).toBeTruthy();
+  expect(screen.getByText(/20 moedas/)).toBeTruthy();
+  expect(screen.getByText(/\+10/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Próximo →'}));
+  expect(act).toHaveBeenCalledWith({type:'tutorial',matchId:'m',action:'next'});
+ });
 });
 
 // A TV deve abrir leve; efeitos ambientais só voltam por escolha do anfitrião.
@@ -38,6 +58,14 @@ describe('TV com apresentação estável',()=>{
   expect(container.querySelector('.living-island')).toBeNull();
   const roll=screen.getByRole('button',{name:'Rolar dado por Iago'});
   fireEvent.click(roll);
-  expect(act).toHaveBeenCalledWith({type:'roll',turn:1,matchId:'m'});
+ expect(act).toHaveBeenCalledWith({type:'roll',turn:1,matchId:'m'});
+ });
+ it('oferece replay no menu da partida',()=>{
+  const reply=fixture();reply.role='host';reply.room.board!.presentation=null;
+  const act=vi.fn().mockResolvedValue(true);
+  render(<BoardTv reply={reply} act={act} busy={false} clockOffset={0} joinUrl="/"/>);
+  fireEvent.click(screen.getByRole('button',{name:'Abrir menu da partida'}));
+  fireEvent.click(screen.getByRole('button',{name:'▶ Rever tutorial'}));
+  expect(act).toHaveBeenCalledWith({type:'tutorial',matchId:'m',action:'replay'});
  });
 });

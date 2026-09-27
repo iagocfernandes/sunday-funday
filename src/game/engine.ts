@@ -1,7 +1,13 @@
 import { CARDS_BY_ID, findCardByCode, digitalCardsOfCategory } from '../data/cards.js';
+import { START_PASS_BONUS } from './boardRules.js';
 import { DEFAULT_CONFIG, ITEMS, MINIGAMES, defaultMinigameOrder } from '../data/config.js';
 import { createDefaultMap } from '../data/map.js';
 import { describePlacement, individualAwards, normalizePlacement } from './placements.js';
+import {
+  minigameRuleForState,
+  previewModernMinigameResult,
+  usesModernMinigameRules,
+} from './minigameRules.js';
 import { intAt, newSeed, shuffle } from './rng.js';
 import type {
   BoardMap,
@@ -163,6 +169,17 @@ function nextRandomInt(state: GameState, min: number, max: number): number {
   return value;
 }
 
+function drawExcludedPlayers(state: GameState, maxParticipants?: number): string[] {
+  if (!maxParticipants || state.order.length <= maxParticipants) return [];
+  const candidates = [...state.order];
+  const excluded: string[] = [];
+  while (candidates.length > maxParticipants) {
+    const index = nextRandomInt(state, 0, candidates.length - 1);
+    excluded.push(candidates.splice(index, 1)[0]);
+  }
+  return excluded;
+}
+
 function removeItem(player: Player, uid: string): PlayerItem | null {
   const index = player.inventory.findIndex((it) => it.uid === uid);
   if (index < 0) return null;
@@ -308,8 +325,8 @@ function arriveAt(state: GameState, player: Player, nodeId: string, events: Doma
 
   const node = state.map.nodes[nodeId];
   if (['ilha-dos-gorilas-v4','ilha-dos-gorilas-v5'].includes(state.map.id) && nodeId === state.map.startNodeId && movement.direction === 'forward') {
-    changeCommon(state, player, 10, 'volta completa', events);
-    state.notice = `${player.name} completou uma volta: +10 moedas!`;
+    changeCommon(state, player, START_PASS_BONUS, 'volta completa', events);
+    state.notice = `${player.name} completou uma volta: +${START_PASS_BONUS} moedas!`;
   }
 
   // Loja e pedestal ativam por PASSAGEM ou chegada.
@@ -1056,11 +1073,17 @@ function reduce(prev: GameState, command: Command): CommandResult {
 
       // Todos jogaram: exatamente um minigame por rodada.
       const game = minigameForRound(state, state.round);
+      const modern = usesModernMinigameRules(state) && Boolean(game.resultMode);
       state.minigame = {
         minigameId: game.id,
-        teams: game.format === 'teams' ? autoTeams(state.order) : [],
+        // Nas regras modernas, a composição acontece presencialmente e o
+        // anfitrião registra diretamente quem venceu.
+        teams: !modern && game.format === 'teams' ? autoTeams(state.order) : [],
         applied: false,
       };
+      if (modern && game.maxParticipants && state.order.length > game.maxParticipants) {
+        state.minigame.excludedPlayerIds = drawExcludedPlayers(state, game.maxParticipants);
+      }
       state.phase = 'minigameIntro';
       events.push({ type: 'minigameStarted', minigameId: game.id });
       log(state, 'minigame', `Fim dos turnos da rodada ${state.round}. Prova: ${game.name}.`);
@@ -1093,9 +1116,21 @@ function reduce(prev: GameState, command: Command): CommandResult {
 
       const game = MINIGAMES.find((m) => m.id === state.minigame!.minigameId)!;
       let awards: Record<string, number>;
+      let goldenAwards: Record<string, number> | undefined;
       let detail: string;
+      let winners: string[];
 
-      if (command.format === 'teams') {
+      const modernRule = minigameRuleForState(state);
+      if (modernRule) {
+        const preview = previewModernMinigameResult(state, command.winnerIds ?? []);
+        if (!preview.ok) return reject(prev, preview.error);
+        awards = preview.awards;
+        goldenAwards = Object.values(preview.goldenAwards).some((amount) => amount > 0)
+          ? preview.goldenAwards
+          : undefined;
+        detail = preview.detail;
+        winners = preview.winnerIds;
+      } else if (command.format === 'teams') {
         const teams = state.minigame.teams;
         if (teams.length < 2) return reject(prev, 'Defina as equipes antes de confirmar.');
         const winningTeam = command.winningTeam ?? -1;
@@ -1104,6 +1139,8 @@ function reduce(prev: GameState, command: Command): CommandResult {
           winningTeam < 0
             ? 'Empate entre as equipes.'
             : `Equipe ${winningTeam + 1} venceu.`;
+        const best = Math.max(...Object.values(awards));
+        winners = Object.entries(awards).filter(([, value]) => value === best).map(([id]) => id);
       } else {
         // Posições competitivas e validação de lacunas vêm da mesma origem que
         // o formulário usa, para que prévia, histórico e prêmio não divirjam.
@@ -1111,6 +1148,8 @@ function reduce(prev: GameState, command: Command): CommandResult {
         if (!placement.ok) return reject(prev, placement.error);
         awards = individualAwards(state.order, placement.tiers, state.config.rewards.individual);
         detail = describePlacement(placement.tiers, (id) => state.players[id].name);
+        const best = Math.max(...Object.values(awards));
+        winners = Object.entries(awards).filter(([, value]) => value === best).map(([id]) => id);
       }
 
       // Premiação aplicada em uma única operação.
@@ -1120,20 +1159,20 @@ function reduce(prev: GameState, command: Command): CommandResult {
         p.common += amount;
         events.push({ type: 'coinsChanged', playerId: id, delta: amount, reason: game.name });
       }
+      for (const [id, amount] of Object.entries(goldenAwards ?? {})) {
+        if (amount > 0) state.players[id].golden += amount;
+      }
       state.minigame.applied = true;
       state.minigame.appliedResultId = command.resultId;
       state.results.push({
         round: state.round,
         minigameId: game.id,
-        format: command.format,
+        format: modernRule ? game.format : command.format,
         awards,
+        ...(goldenAwards ? { goldenAwards } : {}),
         detail,
       });
 
-      const best = Math.max(...Object.values(awards));
-      const winners = Object.entries(awards)
-        .filter(([, v]) => v === best)
-        .map(([id]) => id);
       events.push({ type: 'minigameCompleted', minigameId: game.id, winners });
       log(state, 'minigame', `${game.name}: ${detail}`);
 

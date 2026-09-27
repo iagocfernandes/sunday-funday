@@ -1,4 +1,5 @@
 import { CARDS_BY_ID } from '../data/cards';
+import { MINIGAMES } from '../data/config';
 import { validateMap } from '../data/map';
 import type {
   CardCategory,
@@ -61,6 +62,12 @@ function isNonNegativeInt(value: unknown): value is number {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
+}
+
+/** Referências geradas pelo servidor são capacidades opacas, sem URL externa. */
+function isValidPortraitSource(value: unknown): value is string {
+  if (!isNonEmptyString(value)) return false;
+  return !value.startsWith('/api/portrait') || /^\/api\/portrait\?id=[a-f0-9]{64}$/.test(value);
 }
 
 /**
@@ -143,6 +150,9 @@ export function validateGameState(value: unknown): StateValidation {
       }
     }
     if (!Array.isArray(state.config.minigameOrder)) errors.push('config.minigameOrder precisa ser uma lista.');
+    if (state.config.minigameRulesVersion !== undefined && state.config.minigameRulesVersion !== 2) {
+      errors.push('config.minigameRulesVersion inválido.');
+    }
 
     /* ---------- mapa ---------- */
     if (!isObject(state.map) || !isObject((state.map as unknown as Record<string, unknown>).nodes)) {
@@ -204,6 +214,7 @@ export function validateGameState(value: unknown): StateValidation {
       const player = raw as unknown as GameState['players'][string];
       if (player.id !== id) errors.push(`Jogador ${id} tem id divergente.`);
       if (!isNonEmptyString(player.name)) errors.push(`Jogador ${id} sem nome.`);
+      if (!isValidPortraitSource(player.portrait)) errors.push(`Retrato inválido em ${id}.`);
       // Saldo inválido inclui fracionário, NaN, infinito e negativo.
       if (!isNonNegativeInt(player.common)) errors.push(`Saldo de moedas inválido em ${id}.`);
       if (!isNonNegativeInt(player.golden)) errors.push(`Saldo de bananas de ouro inválido em ${id}.`);
@@ -315,6 +326,30 @@ export function validateGameState(value: unknown): StateValidation {
       } else {
         if (!isNonEmptyString(minigame.minigameId)) errors.push('Prova ativa sem identificador.');
         if (typeof minigame.applied !== 'boolean') errors.push('Prova ativa sem marca de premiação.');
+        const excluded = minigame.excludedPlayerIds;
+        if (excluded !== undefined) {
+          if (!Array.isArray(excluded)) {
+            errors.push('Lista de excluídos da prova inválida.');
+          } else {
+            const validExcluded = excluded.filter(isNonEmptyString);
+            if (validExcluded.length !== excluded.length || validExcluded.some((id) => !state.players[id])) {
+              errors.push('Lista de excluídos cita jogador inexistente.');
+            }
+            if (new Set(validExcluded).size !== validExcluded.length) {
+              errors.push('Jogador repetido na lista de excluídos.');
+            }
+          }
+        }
+        if (state.config.minigameRulesVersion === 2 && isNonEmptyString(minigame.minigameId)) {
+          const def = MINIGAMES.find((game) => game.id === minigame.minigameId);
+          const expectedExcluded = def?.maxParticipants
+            ? Math.max(0, state.order.length - def.maxParticipants)
+            : 0;
+          const actualExcluded = Array.isArray(excluded) ? excluded.length : 0;
+          if (actualExcluded !== expectedExcluded) {
+            errors.push(`A prova exige ${expectedExcluded} jogador(es) excluído(s), mas registra ${actualExcluded}.`);
+          }
+        }
         if (!Array.isArray(minigame.teams)) {
           errors.push('Equipes da prova inválidas.');
         } else {
@@ -352,6 +387,16 @@ export function validateGameState(value: unknown): StateValidation {
         for (const [id, amount] of Object.entries(result.awards)) {
           if (!state.players[id]) errors.push(`Premiação registrada para jogador inexistente: ${id}.`);
           if (!isNonNegativeInt(amount)) errors.push(`Premiação inválida para ${id}.`);
+        }
+        if (result.goldenAwards !== undefined) {
+          if (!isObject(result.goldenAwards)) {
+            errors.push('Premiação dourada registrada é inválida.');
+          } else {
+            for (const [id, amount] of Object.entries(result.goldenAwards)) {
+              if (!state.players[id]) errors.push(`Premiação dourada para jogador inexistente: ${id}.`);
+              if (!isNonNegativeInt(amount)) errors.push(`Premiação dourada inválida para ${id}.`);
+            }
+          }
         }
       }
     }

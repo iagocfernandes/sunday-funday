@@ -317,6 +317,7 @@ table.scoreboard tr.active td { background: rgba(242, 177, 52, 0.14); }
 }
 .player-chip .avatar { width: 26px; height: 26px; }
 .player-chip.dim { opacity: 0.4; }
+.player-chip.selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(242,177,52,0.28); }
 
 .podium { display: flex; gap: 1rem; align-items: flex-end; justify-content: center; margin: 2rem 0; }
 .podium .step { text-align: center; }

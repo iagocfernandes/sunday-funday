@@ -33,6 +33,19 @@ describe('estado legítimo', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('aceita somente o formato exato da referência interna de retrato', () => {
+    const valid = roundTrip((state) => {
+      state.players.p0.portrait = `/api/portrait?id=${'a'.repeat(64)}`;
+    });
+    expect(validateGameState(valid).ok).toBe(true);
+
+    for (const portrait of ['/api/portrait?id=curto', `/api/portrait?id=${'a'.repeat(64)}&url=https://example.com`]) {
+      const result = validateGameState(roundTrip((state) => { state.players.p0.portrait = portrait; }));
+      expect(result.ok).toBe(false);
+      expect(result.errors.join()).toContain('Retrato inválido');
+    }
+  });
+
   it('aceita estados intermediários reais do motor', () => {
     const emMovimento = roundTrip((state) => {
       state.phase = 'moving';
@@ -154,6 +167,45 @@ describe('enums e referências', () => {
       s.results = [{ round: 1, minigameId: 'quiz', format: 'individual', awards: { fantasma: 3 }, detail: '' }];
     }));
     expect(result.ok).toBe(false);
+  });
+
+  it('recusa versão desconhecida das regras de minigame', () => {
+    const result = validateGameState(roundTrip((state) => {
+      (state.config as unknown as { minigameRulesVersion: number }).minigameRulesVersion = 99;
+    }));
+    expect(result.ok).toBe(false);
+    expect(result.errors.join()).toContain('minigameRulesVersion');
+  });
+
+  it('recusa excluídos repetidos ou inexistentes', () => {
+    const repeated = validateGameState(roundTrip((state) => {
+      state.config.minigameOrder = ['coup'];
+      state.minigame = { minigameId: 'coup', teams: [], applied: false, excludedPlayerIds: ['p0', 'p0'] };
+    }));
+    expect(repeated.ok).toBe(false);
+    expect(repeated.errors.join()).toContain('repetido');
+
+    const unknown = validateGameState(roundTrip((state) => {
+      state.config.minigameOrder = ['coup'];
+      state.minigame = { minigameId: 'coup', teams: [], applied: false, excludedPlayerIds: ['fantasma'] };
+    }));
+    expect(unknown.ok).toBe(false);
+    expect(unknown.errors.join()).toContain('inexistente');
+  });
+
+  it('recusa premiação dourada malformada', () => {
+    const result = validateGameState(roundTrip((state) => {
+      state.results = [{
+        round: 1,
+        minigameId: 'party-finale',
+        format: 'individual',
+        awards: { p0: 0 },
+        goldenAwards: { fantasma: 1, p0: -1 },
+        detail: '',
+      }];
+    }));
+    expect(result.ok).toBe(false);
+    expect(result.errors.join()).toContain('dourada');
   });
 });
 

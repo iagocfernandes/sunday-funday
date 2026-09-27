@@ -55,9 +55,64 @@ describe('Miguel host presentation', () => {
     expect(messageForMiguelEvent({ type: 'minigameCompleted', minigameId: 'quiz', winners: ['p0', 'p1'] }, state)?.text).toContain('Iago e Milena');
     expect(messageForMiguelEvent({ type: 'minigameCompleted', minigameId: 'quiz', winners: [] }, state)?.text).toContain('Empate');
     state.pending = { kind: 'duelBet', playerId: 'p0', opponentId: 'p1', maxBet: 5 };
-    expect(messageForMiguelPending(state)?.text).toContain('Duelo à vista');
+    expect(messageForMiguelPending(state)?.text).toContain('até 5 moedas');
     state.pending = { kind: 'duelResult', playerId: 'p0', opponentId: 'p1', bet: 5 };
-    expect(messageForMiguelPending(state)?.text).toContain('aguardando resultado');
+    expect(messageForMiguelPending(state)?.text).toContain('Quando a prova terminar');
+  });
+
+  it('guia cada decisão com o jogador e os valores reais da partida', () => {
+    const state = game();
+    state.players.p0.common = 37;
+    state.players.p0.inventory = [{ uid: 'one', itemId: 'casca' }];
+    state.config.inventoryLimit = 4;
+
+    state.pending = { kind: 'path', playerId: 'p0', options: ['m5', 'a0'] };
+    expect(messageForMiguelPending(state)?.text).toContain('Iago, escolha entre 2 caminhos');
+    state.pending = { kind: 'shop', playerId: 'p0', nodeId: 'shop-west', items: ['casca', 'reverse'] };
+    expect(messageForMiguelPending(state)?.text).toContain('37 moedas');
+    expect(messageForMiguelPending(state)?.text).toContain('1/4 poderes');
+    state.pending = { kind: 'pedestal', playerId: 'p0', nodeId: 'tree-temple', price: 31 };
+    expect(messageForMiguelPending(state)?.text).toContain('árvore do Fábio por 31 moedas');
+    state.pending = { kind: 'iagugu', playerId: 'p0', nodeId: 'iagugu' };
+    expect(messageForMiguelPending(state)?.text).toContain('Iagugu apareceu');
+    state.pending = { kind: 'duelBet', playerId: 'p0', opponentId: 'p1', maxBet: 12 };
+    expect(messageForMiguelPending(state)?.text).toContain('até 12 moedas');
+    state.pending = { kind: 'duelResult', playerId: 'p0', opponentId: 'p1', bet: 9 };
+    expect(messageForMiguelPending(state)?.text).toContain('Quando a prova terminar');
+    state.pending = { kind: 'itemChoice', playerId: 'p0' };
+    expect(messageForMiguelPending(state)?.text).toContain('1/4 poderes');
+  });
+
+  it('anuncia uma janela de item uma vez e permite a próxima do mesmo jogador', async () => {
+    vi.useFakeTimers();
+    const initial = game();
+    const itemChoice = structuredClone(initial);
+    itemChoice.pending = { kind: 'itemChoice', playerId: 'p0' };
+    const { result, rerender } = renderHook(
+      ({ state }) => useMiguelHost({ board: { matchId: 'm1', events: [] }, state, enabled: true, paused: false }),
+      { initialProps: { state: initial } },
+    );
+    rerender({ state: itemChoice });
+    await act(async () => {});
+    expect(result.current.text).toContain('Iago, escolha um poder');
+    await act(async () => { vi.advanceTimersByTime(5001); });
+    expect(result.current.text).toBeNull();
+
+    const poll = structuredClone(itemChoice);
+    poll.revision += 1;
+    rerender({ state: poll });
+    await act(async () => {});
+    expect(result.current.text).toBeNull();
+
+    const cleared = structuredClone(poll);
+    cleared.pending = null;
+    rerender({ state: cleared });
+    await act(async () => {});
+    const nextOccurrence = structuredClone(itemChoice);
+    nextOccurrence.revision += 2;
+    rerender({ state: nextOccurrence });
+    await act(async () => {});
+    expect(result.current.text).toContain('Iago, escolha um poder');
   });
 
   it('mantém tristeza enquanto qualquer Fique Sóbrio estiver ativo', () => {
@@ -95,6 +150,20 @@ describe('Miguel host presentation', () => {
     await act(async () => {});
     expect(result.current.text).toBeNull();
     expect(result.current.messageId).toBeNull();
+  });
+
+  it('prioriza a prévia de carta sobre um evento e uma decisão concorrentes', async () => {
+    const initial = game();
+    const preview = structuredClone(initial);
+    preview.pending = { kind: 'cardPreview', playerId: 'p0', cardId: 'MA01', category: 'unluck' };
+    const event = remote(1, { type: 'minigameCompleted', minigameId: 'quiz', winners: ['p1'] });
+    const { result, rerender } = renderHook(
+      ({ state, events }) => useMiguelHost({ board: { matchId: 'm1', events }, state, enabled: true, paused: false }),
+      { initialProps: { state: initial, events: [] as ReturnType<typeof remote>[] } },
+    );
+    rerender({ state: preview, events: [event] });
+    await act(async () => {});
+    expect(result.current.text).toContain('Iago: shot de bananinha na mesa');
   });
 
   it('mantém reação com reduced motion; apenas a animação fica a cargo do CSS', async () => {
