@@ -37,6 +37,8 @@ export function createGame(
   options: { seed?: number; map?: BoardMap; shuffleOrder?: boolean } = {},
 ): GameState {
   const config: GameConfig = { ...DEFAULT_CONFIG, ...configOverrides };
+  // Salas e saves antigos podem ainda trazer a flag. Ela não tinha efeito.
+  delete (config as { thiefEnabled?: unknown }).thiefEnabled;
   if (config.minigameOrder.length < config.rounds) {
     config.minigameOrder = defaultMinigameOrder(config.rounds);
   }
@@ -1026,12 +1028,6 @@ function reduce(prev: GameState, command: Command): CommandResult {
           state.pending={kind:'duelBet',playerId:player.id,opponentId,maxBet:Math.min(player.common,state.players[opponentId].common)};
           state.phase='awaitingInteraction'; break;
         }
-        case 'thief':
-          if (!cfg.thiefEnabled) {
-            state.notice = 'O esconderijo do ladrão está desativado nesta configuração.';
-          }
-          state.phase = 'turnEnd';
-          break;
         default:
           state.phase = 'turnEnd';
       }

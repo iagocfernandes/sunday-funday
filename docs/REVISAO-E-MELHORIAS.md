@@ -59,14 +59,14 @@ Não houve ensaio em TV física nem em celular de verdade nesta rodada. Os docum
 
 - O README ainda diz que não há backend, conta nem celular. A home local chama o fluxo da TV de “teste”. Quem abrir o repositório na pressa segue a instrução errada.
 - A sequência de provas é calculada e mostrada. Não dá para escolher a prova de cada rodada na preparação.
-- O checkbox “Ativar ladrão” na preparação local não faz o ladrão. Com a opção ligada, a casa `thief` só encerra o turno. O roubo de verdade é o Iagugu, entre casas, no mapa novo. Ligar o checkbox passa a impressão de uma regra que não existe.
+- A opção “Ativar ladrão” foi removida em 27/09. Não havia roubo nessa flag: a casa antiga só encerrava o turno. O roubo da partida é o Iagugu.
 - Preço da loja: 5 no código, 10 no texto da Milena. Premiação de prova e quantidade de rodadas continuam propostas.
 - As 13 cartas têm nome, texto e efeito. A apresentação é moldura em CSS, não uma ilustração por evento.
 - Faltam as falas de duelo e de vitória de minigame. O código pede esses clipes e os descarta de propósito, porque os arquivos aprovados não existem. A fala de campeão não é reaproveitada no minigame.
 - A trilha é síntese do navegador. Serve para a festa. Não é uma gravação.
 - Só três personagens têm sprite oficial. No modo da TV a foto do jogador cobre boa parte dessa falta. No modo local, o resto cai no retrato genérico.
 - O Design Studio ainda tem uma galeria com o título “MIGUEL · ANFITRIÃO”. Na partida, o nome visível já é AR2. O código interno (`useMiguelHost`, `MiguelHost.tsx`) guarda o nome antigo.
-- Vários documentos em `docs/` descrevem etapas já superadas (36 casas, sem celular, ladrão desligado como se fosse a regra viva). O arquivo mais novo nem sempre está marcado como fonte vigente.
+- Vários documentos em `docs/` descrevem etapas já superadas (36 casas, sem celular, a flag de ladrão como se ainda existisse). O arquivo mais novo nem sempre está marcado como fonte vigente.
 - O piscar das casas na TV foi mitigado em 25/09 e não reproduziu neste desktop. A confirmação continua dependendo do aparelho da festa.
 - Itens antigos (Escudo, Casca, Reverse, Banana Turbo, Mão no Bolso) continuam no motor por causa de saves e testes. Não estão na loja atual.
 
@@ -151,7 +151,6 @@ Tudo que decide se a festa funciona:
 - uma página de operação para quem está na TV;
 - ensaio de uma rodada de verdade no endereço publicado, com dois celulares;
 - confirmar rodadas e a prova de cada rodada (os preços da loja já estão na tabela de 26/09);
-- esconder ou rotular o ladrão que não existe;
 - não redesenhar a ilha.
 
 ## Lista priorizada
@@ -162,7 +161,7 @@ Impacto pensado para domingo, 27/09. Esforço é tamanho da mudança, não calen
 |---|---|---|---|---|
 | 1 | Guia de uma página do anfitrião e correção do README. Dizer que a festa abre em `/?remote=tv` no site publicado, que o celular entra pelo QR, e que `/?mode=local` é o fallback sem internet. Incluir pausa, carta, duelo, prova, backup e o que fazer se a sala não conectar. | Alto. Evita operar a festa pelo documento errado. | Baixo. Só texto. | Não |
 | 2 | Ensaio de uma rodada no endereço publicado, com TV e dois celulares: dado, bifurcação, loja, uma carta, uma pausa, recarregar a TV, registrar a prova uma vez. Anotar só o que quebrar. | Altíssimo. É o único teste que o automatizado não faz. | Médio. É gente e aparelho, não um refactor. | Não |
-| 3 | Os preços da loja e do Iagugu foram fechados em 26/09 (`docs/BALANCEAMENTO-PODERES.md`). Ainda faltam as rodadas, se forem diferentes de 8, e a ordem das provas. Na preparação local, desabilitar o checkbox do ladrão com a frase “o roubo é o Iagugu”. Não implementar um segundo ladrão. | Alto. A regra falada e a regra cobrada precisam ser a mesma. | Baixo a médio. Configuração e um controle de UI. | Não |
+| 3 | Os preços da loja e do Iagugu foram fechados em 26/09 (`docs/BALANCEAMENTO-PODERES.md`). Ainda faltam as rodadas, se forem diferentes de 8, e a ordem das provas. A flag de ladrão saiu em 27/09; o roubo é o Iagugu. | Alto. A regra falada e a regra cobrada precisam ser a mesma. | Baixo. Configuração. | Não |
 | 4 | Ilustrar as 13 cartas sem trocar o texto nem o efeito. Referência: `personagens-oficiais.png` e a ilha. Orçar com `dry_run`, gerar um lote pequeno, olhar na TV, só então copiar os PNG para `public/assets`. | Médio na festa, alto no acabamento. A carta já funciona em CSS. | Médio, mais o tempo de revisão visual. | Sim. Créditos Scenario. Plano grátis é curto e sem licença comercial. |
 | 5 | Trocar a trilha procedural e os SFX de oscilador por samples locais, e gravar as falas de duelo e de vitória de prova que o código já espera. O hook de áudio permanece. Sem sample aprovado, o jogo continua com o som atual. | Médio. O som atual já toca. A fala que falta é o buraco mais audível. | Médio. | Sim, se a geração for na Scenario. Um arquivo gravado por fora também serve e não gasta crédito. |
 
@@ -173,7 +172,7 @@ Ficam de fora desta lista, de propósito: mundo 3D, rig, skybox, trailer, store 
 Quando for a hora de codar, a rodada é esta, nesta ordem. Esta revisão não executa a rodada.
 
 1. Escrever o guia do anfitrião em `docs/` e alinhar o README e o link “teste” da home local. Sem mudar regra.
-2. Os preços dos poderes já estão no código. Combinar rodadas e as provas do dia se forem diferentes do padrão. Desabilitar o checkbox do ladrão.
+2. Os preços dos poderes já estão no código. Combinar rodadas e as provas do dia se forem diferentes do padrão. A flag de ladrão já foi removida.
 3. Rodar o ensaio do item 2 da tabela no site publicado. Corrigir somente o que impedir de terminar uma rodada.
 4. Só se sobrar crédito e vontade: um lote de cartas e, se couber, os dois clipes de voz. Nada entra no jogo sem a pessoa olhar em tela cheia. A ilha `ilha-v4.png` não é regenerada.
 
@@ -181,4 +180,4 @@ Critério para parar a rodada: uma sala nova no site publicado completa uma roda
 
 ## Correções neste pull request
 
-A primeira entrega deste pull request era só o documento de revisão. Em 26/09 entrou o balanceamento de preços: números da loja, do Iagugu e os textos que citavam o valor antigo. Mecânica, mapa e layout não mudaram. A sala remota continua dependendo do Redis no deploy; isso não foi mexido.
+A primeira entrega deste pull request era só o documento de revisão. Em 26/09 entrou o balanceamento de preços: números da loja, do Iagugu e os textos que citavam o valor antigo. Em 27/09 saiu a flag `thiefEnabled` e o checkbox “Ativar ladrão”. Mecânica, mapa, preços e layout não mudaram. A sala remota continua dependendo do Redis no deploy; isso não foi mexido.

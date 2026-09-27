@@ -34,9 +34,7 @@ Correção: validar posse antes de comandos/gravações, detectar mudança de pr
 
 ### P2 — Ladrão selecionável, mas sem ação implementada
 
-Em `engine.ts`, a casa thief termina o turno mesmo quando `thiefEnabled` está ligado. A opção no setup sugere uma capacidade inexistente.
-
-Correção de escopo mínimo: remover/desabilitar o controle com indicação de indisponível. Implementar roubo somente depois de confirmar preço, alvos e defesa; não é requisito para validar a primeira partida.
+Registro de 23/09: a casa `thief` só encerrava o turno, e o checkbox sugeria uma regra que não existia. A flag e o checkbox foram removidos em 27/09. O roubo da partida é o Iagugu.
 
 ## Aderência às regras e operação
 

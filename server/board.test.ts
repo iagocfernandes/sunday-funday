@@ -357,6 +357,15 @@ describe('decisões do celular no mapa V3', () => {
     const reply = await f.service.command(code, f.tokenOf(pid), f.id(), command);
     expect(f.game(reply).players[pid].nodeId).toBe('b0'); expect(JSON.stringify(reply)).not.toContain('cardDecks');
   });
+  it('sala antiga com a flag de ladrão continua e o payload público omite o campo', async () => {
+    const f = await boardRoom();
+    const stored = f.stored();
+    (stored.board!.game.config as { thiefEnabled?: boolean }).thiefEnabled = true;
+    const reply = await f.read();
+    expect(reply.room.board!.game.config).not.toHaveProperty('thiefEnabled');
+    expect(reply.room.phase).toBe('playing');
+    expect(f.stored().board!.game.order).toHaveLength(2);
+  });
   it('escolha de poder permanece aberta sem prazo e o dono pode seguir para o dado', async () => {
     const f = await boardRoom(); const b = f.stored().board!, g = b.game, pid = g.order[0];
     g.players[pid].inventory = [{ uid: 'owned', itemId: 'bananaTurbo' }];

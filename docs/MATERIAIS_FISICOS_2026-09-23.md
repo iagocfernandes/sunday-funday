@@ -8,7 +8,7 @@ Atualização do usuário: já existe gráfica escolhida e o prazo informado é 
 
 ## Estado do aplicativo conferido nesta rodada
 
-139 testes e build passaram novamente. O checkout mantém o mesmo diff da revisão anterior e só o commit inicial. As correções solicitadas na etapa 1 não aparecem aqui: readKey ainda migra fora do catch, renovação de lock não confere proprietário, setTeams aceita participantes incompletos, submitResults não valida formato/vencedor integralmente e ladrão permanece selecionável. Não há evidência local de conclusão; eventual execução em outra pasta/branch precisa ser localizada antes de duplicar trabalho.
+139 testes e build passaram novamente. O checkout mantém o mesmo diff da revisão anterior e só o commit inicial. As correções solicitadas na etapa 1 não aparecem aqui: readKey ainda migra fora do catch, renovação de lock não confere proprietário, setTeams aceita participantes incompletos, submitResults não valida formato/vencedor integralmente e, neste checkout de 23/09, o ladrão ainda era selecionável. A flag foi removida em 27/09. Não há evidência local de conclusão; eventual execução em outra pasta/branch precisa ser localizada antes de duplicar trabalho.
 
 ## Kit recomendado
 

@@ -20,7 +20,6 @@ export const DEFAULT_CONFIG: GameConfig = {
   inventoryLimit: 3,
   activeItemsPerTurn: 1,
   itemWindowMs: 5000, // confirmado
-  thiefEnabled: false, // desligado no primeiro ciclo, conforme o plano
   rewards: {
     individual: { first: 20, second: 6, others: 0 },
     teams: { winner: 10, loser: 0, draw: 10 },

@@ -305,7 +305,7 @@ function describeNode(state: GameState, nodeId: string): string {
     unluck: 'Casa de azar',
     shop: 'Loja',
     pedestal: 'Pedestal',
-    thief: 'Esconderijo do ladrão',
+    thief: 'Passagem',
     blank: 'Passagem',
     start: 'Início',
   };
