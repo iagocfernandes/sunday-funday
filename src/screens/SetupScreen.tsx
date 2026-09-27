@@ -33,7 +33,6 @@ export function SetupScreen({ demo, onStart, onCancel }: Props) {
   const [goldenPrice, setGoldenPrice] = useState(DEFAULT_CONFIG.goldenPrice);
   const [startingCommon, setStartingCommon] = useState(DEFAULT_CONFIG.startingCommon);
   const [diceMax, setDiceMax] = useState(DEFAULT_CONFIG.diceMax);
-  const [thiefEnabled, setThiefEnabled] = useState(false);
   const [shuffleOrder, setShuffleOrder] = useState(true);
   const [order, setOrder] = useState<string[]>([]);
 
@@ -54,7 +53,6 @@ export function SetupScreen({ demo, onStart, onCancel }: Props) {
       goldenPrice,
       startingCommon,
       diceMax,
-      thiefEnabled,
       minigameOrder: defaultMinigameOrder(rounds),
     };
   }
@@ -130,10 +128,6 @@ export function SetupScreen({ demo, onStart, onCancel }: Props) {
           <input id="golden" type="number" min={1} value={goldenPrice}
             onChange={(e) => setGoldenPrice(Math.max(1, Number(e.target.value)))} style={{ width: 110 }} />
         </div>
-        <label style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-          <input type="checkbox" checked={thiefEnabled} onChange={(e) => setThiefEnabled(e.target.checked)} />
-          Ativar ladrão (desligado por padrão)
-        </label>
         <label style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
           <input type="checkbox" checked={shuffleOrder} onChange={(e) => setShuffleOrder(e.target.checked)} />
           Sortear a ordem

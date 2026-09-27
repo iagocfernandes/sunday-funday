@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { IAGUGU_GOLDEN_PRICE, ITEMS } from '../src/data/config';
 import { createLegacyMap, createV4Map } from '../src/data/map';
 import { cardsOfCategory } from '../src/data/cards';
 import type { Command } from '../src/game/types';
@@ -339,7 +340,7 @@ describe('decisões do celular no mapa V3', () => {
     await expect(f.service.command(code, f.tokenOf(other), f.id(), command)).rejects.toThrow('não pertence');
     const id = f.id();
     const replies = await Promise.all([f.service.command(code, f.tokenOf(pid), id, command), f.service.command(code, f.tokenOf(pid), id, command)]);
-    for (const reply of replies) { expect(f.game(reply).players[pid].common).toBe(25); expect(f.game(reply).players[pid].inventory).toHaveLength(1); }
+    for (const reply of replies) { expect(f.game(reply).players[pid].common).toBe(30 - ITEMS.bananaTurbo.price); expect(f.game(reply).players[pid].inventory).toHaveLength(1); }
     expect(f.game(replies[0]).movement?.remaining).toBe(1);
     f.tick(1000); const moved = f.game(await f.read()); expect(moved.players[pid].nodeId).toBe('m3');
   });
@@ -355,6 +356,15 @@ describe('decisões do celular no mapa V3', () => {
     await f.service.command(code, host, f.id(), { type: 'resume', matchId: b.matchId });
     const reply = await f.service.command(code, f.tokenOf(pid), f.id(), command);
     expect(f.game(reply).players[pid].nodeId).toBe('b0'); expect(JSON.stringify(reply)).not.toContain('cardDecks');
+  });
+  it('sala antiga com a flag de ladrão continua e o payload público omite o campo', async () => {
+    const f = await boardRoom();
+    const stored = f.stored();
+    (stored.board!.game.config as { thiefEnabled?: boolean }).thiefEnabled = true;
+    const reply = await f.read();
+    expect(reply.room.board!.game.config).not.toHaveProperty('thiefEnabled');
+    expect(reply.room.phase).toBe('playing');
+    expect(f.stored().board!.game.order).toHaveLength(2);
   });
   it('escolha de poder permanece aberta sem prazo e o dono pode seguir para o dado', async () => {
     const f = await boardRoom(); const b = f.stored().board!, g = b.game, pid = g.order[0];
@@ -390,6 +400,6 @@ describe('v4: permissões de duelo e Iagugu',()=>{
     await expect(f.service.command(code,f.tokenOf(other),f.id(),cmd)).rejects.toThrow('não pertence');
     const res=await Promise.allSettled([f.service.command(code,f.tokenOf(owner),f.id(),cmd),f.service.command(code,f.tokenOf(owner),f.id(),cmd)]);
     expect(res.filter(r=>r.status==='fulfilled')).toHaveLength(1);
-    const after=f.game(await f.read());expect(after.players[owner].common).toBe(10);expect(after.players[owner].golden).toBe(1);expect(after.players[other].golden).toBe(0);
+    const after=f.game(await f.read());expect(after.players[owner].common).toBe(50-IAGUGU_GOLDEN_PRICE);expect(after.players[owner].golden).toBe(1);expect(after.players[other].golden).toBe(0);
   });
 });

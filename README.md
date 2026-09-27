@@ -185,8 +185,6 @@ preços da loja e tabelas de premiação.
 A única exceção é a **janela de 5 segundos** para itens ativos, que é decisão
 confirmada e não é editável pela interface.
 
-O **ladrão** vem desligado por configuração, conforme o plano.
-
 ## Protótipo: controles pelo celular
 
 Abra `/?remote=tv` para criar uma sala de teste e exibir o QR code. Dois a dez

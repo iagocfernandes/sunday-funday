@@ -1,9 +1,14 @@
 import type { GameConfig, ItemDef, ItemId, MinigameDef } from '../game/types';
 
 /**
- * TODOS os valores aqui são PROPOSTAS de teste, não regras aprovadas.
- * Exceção: a janela de 5 s para itens ativos é decisão confirmada.
+ * Preços da loja, da banana e do Iagugu: balanceamento de 26/09/2026.
+ * Ver docs/BALANCEAMENTO-PODERES.md. A janela de 5 s para itens ativos segue confirmada.
  */
+
+/** Moedas para o Iagugu transferir uma banana. O roubo de moedas continua grátis. */
+export const IAGUGU_GOLDEN_PRICE = 50;
+/** Teto de moedas que o Iagugu transfere numa visita. */
+export const IAGUGU_COIN_CAP = 10;
 export const DEFAULT_CONFIG: GameConfig = {
   rounds: 8,
   diceMin: 1,
@@ -15,7 +20,6 @@ export const DEFAULT_CONFIG: GameConfig = {
   inventoryLimit: 3,
   activeItemsPerTurn: 1,
   itemWindowMs: 5000, // confirmado
-  thiefEnabled: false, // desligado no primeiro ciclo, conforme o plano
   rewards: {
     individual: { first: 20, second: 6, others: 0 },
     teams: { winner: 10, loser: 0, draw: 10 },
@@ -27,16 +31,16 @@ export const DEFAULT_CONFIG: GameConfig = {
 
 export const ITEMS: Record<ItemId, ItemDef> = {
   preguicao: {id:'preguicao',name:'Gorila Preguição',price:5,description:'Escolha um adversário: a próxima rolagem dele fica entre 1 e 3, mesmo com poder de dado.',usage:'active',icon:'🦥'},
-  blindado: {id:'blindado',name:'Gorila Blindado',price:5,description:'Bloqueia automaticamente um efeito prejudicial de Sorte ou Azar contra você. Consumido ao proteger.',usage:'defensive',icon:'🛡️'},
-  dadoCerteiro: { id: 'dadoCerteiro', name: 'Dado Certeiro', price: 5, description: 'Escolha seu resultado de 1 a 10 antes de rolar.', usage: 'active', icon: '🎯' },
-  bananaTurbo: { id: 'bananaTurbo', name: 'Banana Turbo', price: 5, description: 'Some 5 ao seu dado neste turno.', usage: 'active', icon: '⚡' },
-  trocaTroca: { id: 'trocaTroca', name: 'Troca-Troca', price: 5, description: 'Troque de posição com um adversário aleatório. Depois role normalmente.', usage: 'active', icon: '🔀' },
-  maoNoBolso: { id: 'maoNoBolso', name: 'Mão no Bolso', price: 8, description: 'Escolha um adversário e roube um poder aleatório dele.', usage: 'active', icon: '🎒' },
-  mudaBanana: { id: 'mudaBanana', name: 'Muda a Banana!', price: 5, description: 'Faça a banana dourada nascer em outra árvore Fábio aleatória.', usage: 'active', icon: '🌳' },
+  blindado: {id:'blindado',name:'Gorila Blindado',price:3,description:'Bloqueia automaticamente um efeito prejudicial de Sorte ou Azar contra você. Consumido ao proteger.',usage:'defensive',icon:'🛡️'},
+  dadoCerteiro: { id: 'dadoCerteiro', name: 'Dado Certeiro', price: 8, description: 'Escolha seu resultado de 1 a 10 antes de rolar.', usage: 'active', icon: '🎯' },
+  bananaTurbo: { id: 'bananaTurbo', name: 'Banana Turbo', price: 4, description: 'Some 5 ao seu dado neste turno.', usage: 'active', icon: '⚡' },
+  trocaTroca: { id: 'trocaTroca', name: 'Troca-Troca', price: 8, description: 'Troque de posição com um adversário aleatório. Depois role normalmente.', usage: 'active', icon: '🔀' },
+  maoNoBolso: { id: 'maoNoBolso', name: 'Mão no Bolso', price: 6, description: 'Escolha um adversário e roube um poder aleatório dele.', usage: 'active', icon: '🎒' },
+  mudaBanana: { id: 'mudaBanana', name: 'Muda a Banana!', price: 4, description: 'Faça a banana dourada nascer em outra árvore Fábio aleatória.', usage: 'active', icon: '🌳' },
   dadoDuplo: {
     id: 'dadoDuplo',
     name: 'Dado Duplo',
-    price: 5,
+    price: 6,
     description: 'Role dois dados e ande a soma dos resultados.',
     usage: 'active',
     icon: '🎲',
@@ -44,7 +48,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   escudo: {
     id: 'escudo',
     name: 'Escudo',
-    price: 5,
+    price: 3,
     description: 'Bloqueia um ataque recebido. Consumido ao bloquear.',
     usage: 'defensive',
     icon: '🛡️',
@@ -52,7 +56,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   casca: {
     id: 'casca',
     name: 'Casca de banana',
-    price: 4,
+    price: 2,
     description: 'Alvo perde até 3 moedas.',
     usage: 'active',
     icon: '🍌',
@@ -60,7 +64,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   reverse: {
     id: 'reverse',
     name: 'Reverse',
-    price: 6,
+    price: 4,
     description: 'Devolve um ataque ao atacante. Não gera nova corrente.',
     usage: 'defensive',
     icon: '↩️',

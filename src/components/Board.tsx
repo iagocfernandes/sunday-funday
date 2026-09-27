@@ -121,7 +121,7 @@ function LegacyBoard({ state, highlightNodes = [], onNodeClick }: Props) {
       <g>
         {Object.values(map.nodes).map((node) => {
           const p = px(node);
-          const style = NODE_STYLE[node.kind === 'thief' && !state.config.thiefEnabled ? 'blank' : node.kind];
+          const style = NODE_STYLE[node.kind === 'thief' ? 'blank' : node.kind];
           const isPedestal = !map.stops && node.id === pedestalNodeId;
           const highlighted = highlightNodes.includes(node.id);
           return (
@@ -153,7 +153,7 @@ function LegacyBoard({ state, highlightNodes = [], onNodeClick }: Props) {
               >
                 {isPedestal ? '🍌' : style.icon}
               </text>
-              {node.label && !isPedestal && !(node.kind === 'thief' && !state.config.thiefEnabled) && (
+              {node.label && !isPedestal && node.kind !== 'thief' && (
                 <text
                   textAnchor="middle"
                   y={-28}

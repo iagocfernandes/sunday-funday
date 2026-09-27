@@ -2,7 +2,7 @@
 
 ## Decisões implementadas
 
-6 eventos de Sorte e 7 de Azar com os nomes da Milena. 6 poderes na loja, cada um por 10 moedas: Dado Duplo, Dado Certeiro, Troca-Troca, Muda a Banana!, Gorila Preguição e Gorila Blindado. Limite de 3 poderes e 1 ativo por turno. Troca-Troca preserva o adversário aleatório aprovado anteriormente.
+6 eventos de Sorte e 7 de Azar com os nomes da Milena. 6 poderes na loja. O texto de 24/09 dizia 10 moedas cada; o código cobrava 5. Em 26/09 os preços passaram a seguir `docs/BALANCEAMENTO-PODERES.md`: Dado Duplo 6, Dado Certeiro 8, Troca-Troca 8, Muda a Banana! 4, Gorila Preguição 5, Gorila Blindado 3. Limite de 3 poderes e 1 ativo por turno. Troca-Troca preserva o adversário aleatório aprovado anteriormente.
 
 Blindado automático, conforme resposta explícita do Iago: consome uma cópia ao bloquear um efeito prejudicial de Sorte/Azar contra seu portador. Não desperdiça proteção com benefícios e não protege contra poderes ou Iagugu.
 

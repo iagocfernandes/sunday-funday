@@ -10,7 +10,7 @@ Histórico consultado: tarefa arquivada “Desenvolver jogo Sunday Funday”, es
 - Validação de backups e fallback para snapshot anterior foram implementados parcialmente. `readKey` ainda chama `migrate` fora do catch; `migrate` atribui campos a `snapshot.state` sem garantir que seja objeto. Um estado primitivo pode lançar antes do fallback. O histórico já registrou reprodução desse problema.
 - Alterações da rodada anterior permanecem locais, sem commit. Preservá-las e revisar o diff antes de acrescentar mudanças.
 - Cenário e três personagens existem em `public/assets/`; `public/previa-tabuleiro.html` continua separado do `Board` funcional.
-- Permanecem pendentes exclusividade entre abas, validação completa de equipes/resultados, opção de ladrão sem implementação e integração do livro.
+- Permanecem pendentes exclusividade entre abas, validação completa de equipes/resultados e integração do livro. A opção de ladrão citada neste plano foi removida em 27/09.
 
 ## Execuções em ordem
 
@@ -20,7 +20,7 @@ Corrigir a leitura/migração para que entrada malformada nunca impeça recupera
 
 Corrigir posse do lock: verificar proprietário antes de comandos e gravações, pausar ao perder posse e renovar somente a sessão proprietária. Testar tomada de controle entre duas abas.
 
-Validar equipes completas, não vazias, sem duplicatas, formato compatível com a prova e vencedor existente. Desabilitar a opção de ladrão enquanto não houver implementação.
+Validar equipes completas, não vazias, sem duplicatas, formato compatível com a prova e vencedor existente. A opção de ladrão deste plano foi removida em 27/09; o roubo é o Iagugu.
 
 Aceite: regressões passam; import inválido não altera save válido; aba anterior não escreve após perder posse; resultado inválido não altera moedas/revisão. Rodar `npm test` e `npm run build`.
 
@@ -60,8 +60,8 @@ Aceite: partida termina sem console ou edição de arquivos, recarga não rerola
 
 ## Ordem de corte se o prazo apertar
 
-Manter recuperação, regras corretas, tabuleiro funcional, resultados e ensaio. Reduzir variedade de cenas, usar retratos genéricos e repetir provas aprovadas antes de acrescentar artes ou mecânicas. Não incluir ladrão, companheiro, 3D, multiplayer ou vídeos nesta rodada.
+Manter recuperação, regras corretas, tabuleiro funcional, resultados e ensaio. Reduzir variedade de cenas, usar retratos genéricos e repetir provas aprovadas antes de acrescentar artes ou mecânicas. Não incluir companheiro, 3D, multiplayer ou vídeos nesta rodada. A flag de ladrão foi removida em 27/09.
 
 ## Primeira execução pronta
 
-> Execute somente a etapa 1 deste documento. Preserve as alterações locais existentes. Comece reproduzindo a exceção de leitura/migração do snapshot e acrescente regressão que prove a recuperação do anterior. Depois corrija exclusividade entre abas, validação de equipes/resultados e desabilite o ladrão não implementado. Não altere regras, mapa ou artes. Rode testes e build; informe resultados e limitações. Não publique nem faça push.
+> Execute somente a etapa 1 deste documento. Preserve as alterações locais existentes. Comece reproduzindo a exceção de leitura/migração do snapshot e acrescente regressão que prove a recuperação do anterior. Depois corrija exclusividade entre abas e validação de equipes/resultados. A flag de ladrão foi removida em 27/09. Não altere regras, mapa ou artes. Rode testes e build; informe resultados e limitações. Não publique nem faça push.
