@@ -11,7 +11,7 @@ import { DecisionPanel } from '../components/DecisionPanel';
 import { MinigamePanel } from '../components/MinigamePanel';
 import { HistoryPanel, NextMinigame, Scoreboard } from '../components/Scoreboard';
 import { CARDS_BY_ID } from '../data/cards';
-import { ITEMS } from '../data/config';
+import { IAGUGU_GOLDEN_PRICE, ITEMS } from '../data/config';
 import { activePlayer, ranking, statusText } from '../game/engine';
 import type { Command, GameState } from '../game/types';
 import { layoutBoardForRender } from '../presentation/boardLayout';
@@ -67,7 +67,7 @@ function decisionSummary(state: GameState): {title:string; detail:string} | null
     case 'shop': return {title:`${actor} chegou à loja`,detail:'Comprar um poder ou continuar? A escolha está no celular.'};
     case 'pedestal': return {title:'A banana dourada está aqui!',detail:`${actor} pode colher por ${p.price} moedas. A parada não gasta passos.`};
     case 'harvest': return {title:`${actor} conquistou uma banana!`,detail:`A próxima está na ${state.map.stops?.find(s=>s.id===p.nextTreeId)?.name??'nova árvore'}. O caminho continua automaticamente.`};
-    case 'iagugu': return {title:`${actor} encontrou o Iagugu`,detail:'Escolha a vítima no celular. Moedas: grátis · Banana dourada: 40 moedas.'};
+    case 'iagugu': return {title:`${actor} encontrou o Iagugu`,detail:`Escolha a vítima no celular. Moedas: grátis · Banana dourada: ${IAGUGU_GOLDEN_PRICE} moedas.`};
     case 'duelBet':return {title:`Duelo! ${actor} × ${state.players[p.opponentId].name}`,detail:`${actor} escolhe a aposta no celular: até ${p.maxBet} moedas.`};
     case 'duelResult':return {title:`${actor} × ${state.players[p.opponentId].name}`,detail:`${p.allIn?'TUDO OU NADA: todas as moedas do perdedor.':`Beer Pong com 3 copos de cada lado, valendo ${p.bet} moedas.`} O anfitrião registra o resultado.`};
     case 'cardPreview': {const card=CARDS_BY_ID[p.cardId];return {title:`${p.category==='luck'?'Sorte':'Azar'} · ${card?.title??'Evento'}`,detail:`${actor}: ${card?.description??'Confirme no celular.'}`};}

@@ -300,7 +300,8 @@ export const activeId = (game: GameState) => game.order[game.activeIndex] ?? nul
 /** Projeção explícita: somente campos públicos. Semente e cursor do sorteio ficam no servidor. */
 export function boardView(board: BoardState): BoardView {
   const { rngSeed: _seed, rngCursor: _cursor, cardDecks: _decks, ...rest } = board.game;
-  const game: PublicGame = { ...rest, history: rest.history.slice(-40) };
+  const { thiefEnabled: _legacyThief, ...config } = rest.config as typeof rest.config & { thiefEnabled?: unknown };
+  const game: PublicGame = { ...rest, config, history: rest.history.slice(-40) };
   return {
     matchId: board.matchId, game, paused: board.paused,
     itemDeadline: board.itemDeadline, pausedItemMs: board.pausedItemMs,

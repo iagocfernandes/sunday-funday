@@ -105,6 +105,14 @@ describe('export / import', () => {
     }
   });
 
+  it('ignora a flag antiga de ladrão num save', () => {
+    const state = game();
+    (state.config as { thiefEnabled?: boolean }).thiefEnabled = true;
+    const result = parseImport(exportSnapshot(state, control));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.snapshot.state.config).not.toHaveProperty('thiefEnabled');
+  });
+
   it('rejeita JSON inválido', () => {
     expect(parseImport('{nope').ok).toBe(false);
   });

@@ -26,7 +26,7 @@ Prioridade: instruções atuais do usuário > decisões confirmadas neste plano 
 ### Ideias da reunião incorporadas como propostas
 
 - Livro ilustrado dos gorilas abre páginas e apresenta acontecimentos, prêmios e minigames.
-- Loja, ladrão, casa de sorte, casa de azar, cartas de ataque, proteção e reversão.
+- Loja, casa de sorte, casa de azar, cartas de ataque, proteção e reversão. A flag de ladrão deste plano foi removida em 27/09.
 - Nome Cuplão continua provisório. Usar Sunday Funday na interface inicial.
 
 ### Propostas que NÃO são regras aprovadas
@@ -132,13 +132,13 @@ Essas recompensas exigem simulação antes de serem usadas no evento. Provas com
 - Cartas de deslocamento forçado inicialmente não ativam passagem nem casa de destino, evitando cadeias. Recúo segue o histórico real de passos; sem histórico suficiente, para no início.
 - Nunca permitir rolagem enquanto há escolha, efeito ou transação pendente.
 
-### Loja e ladrão
+### Loja
 
 Itens iniciais sugeridos: dado duplo (5 moedas), escudo (5), casca que faz alvo perder até 3 moedas (4), reverse (6). Valores e textos em dados editáveis.
 
 Loja: escolher item, confirmar preço, debitar e adicionar inventário atomicamente. Se inventário cheio, recusar compra no MVP. Cancelar não cobra.
 
-Ladrão fica desligado por configuração no primeiro ciclo de desenvolvimento. Depois: escolher roubar até 5 moedas gratuitamente OU pagar 30 para roubar uma dourada de alvo elegível. Mostrar alvo, custo e possibilidade de defesa antes de confirmar. Ataque bloqueado consome o custo e a defesa, sem transferência; deixar essa regra explícita. Sem alvo com douradas, desabilitar essa opção.
+A flag de ladrão deste plano não entrou no jogo e foi removida em 27/09. O roubo da partida é o Iagugu, entre casas.
 
 ## 5. Cartas físicas e efeitos
 
@@ -310,7 +310,7 @@ Aceite: recarregar após rolar dado, durante escolha de caminho e depois de conf
 
 ### Etapa 3 — cartas e interações
 
-Códigos físicos, efeitos básicos, alvo, escudo e reverse. Ativar ladrão somente depois de validar transações e defesas.
+Códigos físicos, efeitos básicos, alvo, escudo e reverse. A flag de ladrão deste plano foi removida; o roubo é o Iagugu.
 
 Aceite: não duplicar prêmio com clique duplo, não ficar negativo, não consumir defesa duas vezes e não criar loop de reverse.
 

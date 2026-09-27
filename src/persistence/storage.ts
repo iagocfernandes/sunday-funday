@@ -225,6 +225,9 @@ export function migrate(snapshot: Snapshot): Snapshot | null {
   const state = snapshot.state;
   // Versões anteriores não existiram em produção; normalizamos campos ausentes.
   state.schemaVersion = SCHEMA_VERSION;
+  if (state.config && typeof state.config === 'object') {
+    delete (state.config as { thiefEnabled?: unknown }).thiefEnabled;
+  }
   state.notice = state.notice ?? null;
   state.shopUsedNodes = state.shopUsedNodes ?? [];
   state.results = state.results ?? [];

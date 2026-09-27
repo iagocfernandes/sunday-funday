@@ -1,6 +1,6 @@
 import { CARDS_BY_ID, findCardByCode, digitalCardsOfCategory } from '../data/cards.js';
 import { START_PASS_BONUS } from './boardRules.js';
-import { DEFAULT_CONFIG, ITEMS, MINIGAMES, defaultMinigameOrder } from '../data/config.js';
+import { DEFAULT_CONFIG, IAGUGU_COIN_CAP, IAGUGU_GOLDEN_PRICE, ITEMS, MINIGAMES, defaultMinigameOrder } from '../data/config.js';
 import { createDefaultMap } from '../data/map.js';
 import { describePlacement, individualAwards, normalizePlacement } from './placements.js';
 import {
@@ -43,6 +43,8 @@ export function createGame(
   options: { seed?: number; map?: BoardMap; shuffleOrder?: boolean } = {},
 ): GameState {
   const config: GameConfig = { ...DEFAULT_CONFIG, ...configOverrides };
+  // Salas e saves antigos podem ainda trazer a flag. Ela não tinha efeito.
+  delete (config as { thiefEnabled?: unknown }).thiefEnabled;
   if (config.minigameOrder.length < config.rounds) {
     config.minigameOrder = defaultMinigameOrder(config.rounds);
   }
@@ -728,13 +730,13 @@ function reduce(prev: GameState, command: Command): CommandResult {
       const target=state.players[command.targetId];
       if (!target || target.id===player.id) return reject(prev,'Escolha outro jogador.');
       if (command.currency==='golden') {
-        if (player.common<40 || target.golden<1) return reject(prev,'São necessárias 40 moedas e uma vítima com banana.');
-        changeCommon(state,player,-40,'pagamento ao Iagugu',events);
+        if (player.common<IAGUGU_GOLDEN_PRICE || target.golden<1) return reject(prev,`São necessárias ${IAGUGU_GOLDEN_PRICE} moedas e uma vítima com banana.`);
+        changeCommon(state,player,-IAGUGU_GOLDEN_PRICE,'pagamento ao Iagugu',events);
         target.golden--; player.golden++;
-        log(state,'golden',`${player.name} pagou 40 moedas ao Iagugu e roubou uma banana de ${target.name}.`,player.id);
+        log(state,'golden',`${player.name} pagou ${IAGUGU_GOLDEN_PRICE} moedas ao Iagugu e roubou uma banana de ${target.name}.`,player.id);
       } else if (command.currency==='common') {
         if (target.common<1) return reject(prev,'Este jogador não tem moedas.');
-        const amount=Math.min(10,target.common);
+        const amount=Math.min(IAGUGU_COIN_CAP,target.common);
         changeCommon(state,target,-amount,`Iagugu a pedido de ${player.name}`,events);
         changeCommon(state,player,amount,`Iagugu roubou de ${target.name}`,events);
       } else return reject(prev,'Tipo de roubo inválido.');
@@ -1043,12 +1045,6 @@ function reduce(prev: GameState, command: Command): CommandResult {
           state.pending={kind:'duelBet',playerId:player.id,opponentId,maxBet:Math.min(player.common,state.players[opponentId].common)};
           state.phase='awaitingInteraction'; break;
         }
-        case 'thief':
-          if (!cfg.thiefEnabled) {
-            state.notice = 'O esconderijo do ladrão está desativado nesta configuração.';
-          }
-          state.phase = 'turnEnd';
-          break;
         default:
           state.phase = 'turnEnd';
       }

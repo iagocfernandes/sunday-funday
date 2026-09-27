@@ -1,9 +1,14 @@
 import type { GameConfig, ItemDef, ItemId, MinigameDef } from '../game/types';
 
 /**
- * TODOS os valores aqui são PROPOSTAS de teste, não regras aprovadas.
- * Exceção: a janela de 5 s para itens ativos é decisão confirmada.
+ * Preços da loja, da banana e do Iagugu: balanceamento de 26/09/2026.
+ * Ver docs/BALANCEAMENTO-PODERES.md. A janela de 5 s para itens ativos segue confirmada.
  */
+
+/** Moedas para o Iagugu transferir uma banana. O roubo de moedas continua grátis. */
+export const IAGUGU_GOLDEN_PRICE = 50;
+/** Teto de moedas que o Iagugu transfere numa visita. */
+export const IAGUGU_COIN_CAP = 10;
 export const DEFAULT_CONFIG: GameConfig = {
   rounds: 10,
   diceMin: 1,
@@ -15,7 +20,6 @@ export const DEFAULT_CONFIG: GameConfig = {
   inventoryLimit: 3,
   activeItemsPerTurn: 1,
   itemWindowMs: 5000, // confirmado
-  thiefEnabled: false, // desligado no primeiro ciclo, conforme o plano
   rewards: {
     individual: { first: 20, second: 6, others: 0 },
     teams: { winner: 10, loser: 0, draw: 10 },

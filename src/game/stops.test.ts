@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ITEMS } from '../data/config';
 import { createV3Map as createDefaultMap, createLegacyMap, routeHint, validateMap } from '../data/map';
 import { applyCommand, createGame } from './engine';
 import type { Command, GameState, ItemId } from './types';
@@ -34,7 +35,7 @@ describe('V3: serviços entre casas', () => {
     const failed = result(s, { type: 'buyItem', itemId: 'dadoCerteiro', discardUid: 'estranho' });
     expect(failed.rejected).toBeDefined(); expect(failed.state).toBe(s);
     const bought = run(s, { type: 'buyItem', itemId: 'dadoCerteiro', discardUid: 'b' });
-    expect(bought.players.p0.common).toBe(92); expect(bought.players.p0.inventory).toHaveLength(3);
+    expect(bought.players.p0.common).toBe(100 - ITEMS.dadoCerteiro.price); expect(bought.players.p0.inventory).toHaveLength(3);
     expect(bought.players.p0.inventory.some(i => i.uid === 'b')).toBe(false);
     expect(result(bought, { type: 'buyItem', itemId: 'dadoCerteiro', discardUid: 'a' }).rejected).toBeDefined();
     expect(run(bought, { type: 'step' }).players.p0.nodeId).toBe('m3');

@@ -112,7 +112,6 @@ export interface GameConfig {
   inventoryLimit: number;
   activeItemsPerTurn: number;
   itemWindowMs: number;
-  thiefEnabled: boolean;
   rewards: RewardTable;
   shopItems: ItemId[];
   minigameOrder: string[];
